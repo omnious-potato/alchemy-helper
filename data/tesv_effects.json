@@ -1,0 +1,473 @@
+[{
+    "id": "000AE722",
+    "name": "Cure Disease",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 5,
+    "Base_Dur": 0,
+    "value": 21
+}, {
+    "id": "00109ADD",
+    "name": "Cure Poison",
+    "isPositive": true,
+    "Base_Cost": 0.2,
+    "Base_Mag": 2,
+    "Base_Dur": 0,
+    "value": 3
+}, {
+    "id": "0003EB42",
+    "name": "Damage Health",
+    "isPositive": false,
+    "Base_Cost": 3,
+    "Base_Mag": 2,
+    "Base_Dur": 1,
+    "value": 3
+}, {
+    "id": "0003A2B6",
+    "name": "Damage Magicka",
+    "isPositive": false,
+    "Base_Cost": 2.2,
+    "Base_Mag": 3,
+    "Base_Dur": 0,
+    "value": 52
+}, {
+    "id": "00073F2B",
+    "name": "Damage Magicka Regen",
+    "isPositive": false,
+    "Base_Cost": 0.5,
+    "Base_Mag": 100,
+    "Base_Dur": 5,
+    "value": 265
+}, {
+    "id": "0003A2C6",
+    "name": "Damage Stamina",
+    "isPositive": false,
+    "Base_Cost": 1.8,
+    "Base_Mag": 3,
+    "Base_Dur": 0,
+    "value": 43
+}, {
+    "id": "00073F2C",
+    "name": "Damage Stamina Regen",
+    "isPositive": false,
+    "Base_Cost": 0.3,
+    "Base_Mag": 100,
+    "Base_Dur": 5,
+    "value": 159
+}, {
+    "id": "00073F20",
+    "name": "Fear",
+    "isPositive": false,
+    "Base_Cost": 5,
+    "Base_Mag": 1,
+    "Base_Dur": 30,
+    "value": 120
+}, {
+    "id": "0003EB24",
+    "name": "Fortify Alteration",
+    "isPositive": true,
+    "Base_Cost": 0.2,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 47
+}, {
+    "id": "0003EB23",
+    "name": "Fortify Barter",
+    "isPositive": true,
+    "Base_Cost": 2,
+    "Base_Mag": 1,
+    "Base_Dur": 30,
+    "value": 48
+}, {
+    "id": "0003EB1C",
+    "name": "Fortify Block",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 118
+}, {
+    "id": "0003EB01",
+    "name": "Fortify Carry Weight",
+    "isPositive": true,
+    "Base_Cost": 0.15,
+    "Base_Mag": 4,
+    "Base_Dur": 300,
+    "value": 208
+}, {
+    "id": "0003EB25",
+    "name": "Fortify Conjuration",
+    "isPositive": true,
+    "Base_Cost": 0.25,
+    "Base_Mag": 5,
+    "Base_Dur": 60,
+    "value": 75
+}, {
+    "id": "0003EB26",
+    "name": "Fortify Destruction",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 5,
+    "Base_Dur": 60,
+    "value": 151
+}, {
+    "id": "0003EB29",
+    "name": "Fortify Enchanting",
+    "isPositive": true,
+    "Base_Cost": 0.6,
+    "Base_Mag": 1,
+    "Base_Dur": 30,
+    "value": 14
+}, {
+    "id": "0003EAF3",
+    "name": "Fortify Health",
+    "isPositive": true,
+    "Base_Cost": 0.35,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 82
+}, {
+    "id": "0003EB1E",
+    "name": "Fortify Heavy Armor",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 2,
+    "Base_Dur": 60,
+    "value": 55
+}, {
+    "id": "0003EB27",
+    "name": "Fortify Illusion",
+    "isPositive": true,
+    "Base_Cost": 0.4,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 94
+}, {
+    "id": "0003EB1F",
+    "name": "Fortify Light Armor",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 2,
+    "Base_Dur": 60,
+    "value": 55
+}, {
+    "id": "0003EB21",
+    "name": "Fortify Lockpicking",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 2,
+    "Base_Dur": 30,
+    "value": 25
+}, {
+    "id": "0003EAF8",
+    "name": "Fortify Magicka",
+    "isPositive": true,
+    "Base_Cost": 0.3,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 71
+}, {
+    "id": "0003EB1B",
+    "name": "Fortify Marksman",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 118
+}, {
+    "id": "0003EB19",
+    "name": "Fortify One-handed",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 118
+}, {
+    "id": "0003EB20",
+    "name": "Fortify Pickpocket",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 118
+}, {
+    "id": "0003EB28",
+    "name": "Fortify Restoration",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 118
+}, {
+    "id": "0003EB1D",
+    "name": "Fortify Smithing",
+    "isPositive": true,
+    "Base_Cost": 0.75,
+    "Base_Mag": 4,
+    "Base_Dur": 30,
+    "value": 82
+}, {
+    "id": "0003EB22",
+    "name": "Fortify Sneak",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 118
+}, {
+    "id": "0003EAF9",
+    "name": "Fortify Stamina",
+    "isPositive": true,
+    "Base_Cost": 0.3,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 71
+}, {
+    "id": "0003EB1A",
+    "name": "Fortify Two-handed",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 118
+}, {
+    "id": "00073F29",
+    "name": "Frenzy",
+    "isPositive": false,
+    "Base_Cost": 15,
+    "Base_Mag": 1,
+    "Base_Dur": 10,
+    "value": 107
+}, {
+    "id": "0003EB3D",
+    "name": "Invisibility",
+    "isPositive": true,
+    "Base_Cost": 100,
+    "Base_Mag": 0,
+    "Base_Dur": 4,
+    "value": 261
+}, {
+    "id": "FExxx846",
+    "name": "Light",
+    "isPositive": true,
+    "Base_Cost": null,
+    "Base_Mag": null,
+    "Base_Dur": null,
+    "value": 25
+}, {
+    "id": "0010AA4A",
+    "name": "Lingering Damage Health",
+    "isPositive": false,
+    "Base_Cost": 12,
+    "Base_Mag": 1,
+    "Base_Dur": 10,
+    "value": 86
+}, {
+    "id": "0010DE5F",
+    "name": "Lingering Damage Magicka",
+    "isPositive": false,
+    "Base_Cost": 10,
+    "Base_Mag": 1,
+    "Base_Dur": 10,
+    "value": 71
+}, {
+    "id": "0010DE5E",
+    "name": "Lingering Damage Stamina",
+    "isPositive": false,
+    "Base_Cost": 1.8,
+    "Base_Mag": 1,
+    "Base_Dur": 10,
+    "value": 12
+}, {
+    "id": "FExxx803",
+    "name": "Night Eye",
+    "isPositive": true,
+    "Base_Cost": null,
+    "Base_Mag": null,
+    "Base_Dur": null,
+    "value": 38
+}, {
+    "id": "00073F30",
+    "name": "Paralysis",
+    "isPositive": false,
+    "Base_Cost": 500,
+    "Base_Mag": 0,
+    "Base_Dur": 1,
+    "value": 285
+}, {
+    "id": "00073F26",
+    "name": "Ravage Health",
+    "isPositive": false,
+    "Base_Cost": 0.4,
+    "Base_Mag": 2,
+    "Base_Dur": 10,
+    "value": 6
+}, {
+    "id": "00073F27",
+    "name": "Ravage Magicka",
+    "isPositive": false,
+    "Base_Cost": 1,
+    "Base_Mag": 2,
+    "Base_Dur": 10,
+    "value": 15
+}, {
+    "id": "00073F23",
+    "name": "Ravage Stamina",
+    "isPositive": false,
+    "Base_Cost": 1.6,
+    "Base_Mag": 2,
+    "Base_Dur": 10,
+    "value": 24
+}, {
+    "id": "0003EB06",
+    "name": "Regenerate Health",
+    "isPositive": true,
+    "Base_Cost": 0.1,
+    "Base_Mag": 5,
+    "Base_Dur": 300,
+    "value": 177
+}, {
+    "id": "0003EB07",
+    "name": "Regenerate Magicka",
+    "isPositive": true,
+    "Base_Cost": 0.1,
+    "Base_Mag": 5,
+    "Base_Dur": 300,
+    "value": 177
+}, {
+    "id": "0003EB08",
+    "name": "Regenerate Stamina",
+    "isPositive": true,
+    "Base_Cost": 0.1,
+    "Base_Mag": 5,
+    "Base_Dur": 300,
+    "value": 177
+}, {
+    "id": "0003EAEA",
+    "name": "Resist Fire",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 3,
+    "Base_Dur": 60,
+    "value": 86
+}, {
+    "id": "0003EAEB",
+    "name": "Resist Frost",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 3,
+    "Base_Dur": 60,
+    "value": 86
+}, {
+    "id": "00039E51",
+    "name": "Resist Magic",
+    "isPositive": true,
+    "Base_Cost": 1,
+    "Base_Mag": 1,
+    "Base_Dur": 60,
+    "value": 51
+}, {
+    "id": "00090041",
+    "name": "Resist Poison",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 4,
+    "Base_Dur": 60,
+    "value": 118
+}, {
+    "id": "0003EAEC",
+    "name": "Resist Shock",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 3,
+    "Base_Dur": 60,
+    "value": 86
+}, {
+    "id": "0003EB15",
+    "name": "Restore Health",
+    "isPositive": true,
+    "Base_Cost": 0.5,
+    "Base_Mag": 5,
+    "Base_Dur": 0,
+    "value": 21
+}, {
+    "id": "0003EB17",
+    "name": "Restore Magicka",
+    "isPositive": true,
+    "Base_Cost": 0.6,
+    "Base_Mag": 5,
+    "Base_Dur": 0,
+    "value": 25
+}, {
+    "id": "0003EB16",
+    "name": "Restore Stamina",
+    "isPositive": true,
+    "Base_Cost": 0.6,
+    "Base_Mag": 5,
+    "Base_Dur": 0,
+    "value": 25
+}, {
+    "id": "00073F25",
+    "name": "Slow",
+    "isPositive": false,
+    "Base_Cost": 1,
+    "Base_Mag": 50,
+    "Base_Dur": 5,
+    "value": 247
+}, {
+    "id": "FExxx812",
+    "name": "Spell Absorption",
+    "isPositive": true,
+    "Base_Cost": null,
+    "Base_Mag": null,
+    "Base_Dur": null,
+    "value": 380
+}, {
+    "id": "0003AC2D",
+    "name": "Waterbreathing",
+    "isPositive": true,
+    "Base_Cost": 30,
+    "Base_Mag": 0,
+    "Base_Dur": 5,
+    "value": 100
+}, {
+    "id": "00073F2D",
+    "name": "Weakness to Fire",
+    "isPositive": false,
+    "Base_Cost": 0.6,
+    "Base_Mag": 3,
+    "Base_Dur": 30,
+    "value": 48
+}, {
+    "id": "00073F2E",
+    "name": "Weakness to Frost",
+    "isPositive": false,
+    "Base_Cost": 0.5,
+    "Base_Mag": 3,
+    "Base_Dur": 30,
+    "value": 40
+}, {
+    "id": "00073F51",
+    "name": "Weakness to Magic",
+    "isPositive": false,
+    "Base_Cost": 1,
+    "Base_Mag": 2,
+    "Base_Dur": 30,
+    "value": 51
+}, {
+    "id": "00090042",
+    "name": "Weakness to Poison",
+    "isPositive": false,
+    "Base_Cost": 1,
+    "Base_Mag": 2,
+    "Base_Dur": 30,
+    "value": 51
+}, {
+    "id": "00073F2F",
+    "name": "Weakness to Shock",
+    "isPositive": false,
+    "Base_Cost": 0.7,
+    "Base_Mag": 3,
+    "Base_Dur": 30,
+    "value": 56
+}]
