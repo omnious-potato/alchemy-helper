@@ -4,6 +4,9 @@
 #include <cstring>
 #include <cstdint>
 #include <vector>
+#include <bitset>
+
+#include "lz4.h"
 
 
 template<typename T>
@@ -31,7 +34,7 @@ struct wstring
 }
 
 
-typedef double float32;
+typedef float float32;
 typedef uint64_t FILETIME;
 
 
@@ -84,7 +87,7 @@ struct FileLocationTable {
 	uint32_t globalDataTable3Count;
 	uint32_t changeFormCount;
 	uint32_t unused[15];
-}FileLocationTable;
+} FileLocationTable;
 
 
 
@@ -93,6 +96,7 @@ fstream file;
 template<typename T, typename U>
 int oread(T &path, U amount) {
 	file.read(reinterpret_cast<char*>(&path), amount);
+
 	return 0;
 }
 
@@ -110,14 +114,21 @@ int oread_alloc(T &path, U amount) {
 	return 0;
 }
 
-template<typename V, typename T, typename U>
-int qread(V &data_path_to_read, T &path_to_read, U amount_to_read) {
-	oread(amount_to_read, sizeof(uint16_t));
-	oread_alloc(data_path_to_read, amount_to_read);
+// template<typename V, typename T, typename U>
+// int qqread(V &data_path_to_read, T &path_to_read, U amount_to_read) {
+// 	oread(amount_to_read, sizeof(uint16_t));//WTF THIS WORKS? I AM CONFUSED (apparently template magic made a temp variable to replace constant sizeof())
+//												ZERO MAGIC here sizeof(path_to_read) == amount_to_read;
+// 	oread_alloc(data_path_to_read, amount_to_read);
+// 	return 0;
+// }
+
+
+template<typename V, typename U>
+int qqread(V &data, U &prefix) {
+	oread(prefix, sizeof(prefix));
+	oread_alloc(data, prefix);
 	return 0;
 }
-
-
 
 
 
@@ -137,12 +148,14 @@ int main(int argc, char const *argv[])
 
 	file.read(magic, 13);
 
+
 	if (strcmp(magic, "TESV_SAVEGAME") != 0) {
+		cout << magic << endl;
 		cout << "Please provide correct Skyrim savefile!" << endl;
 		return -1;
 	}
 
-	cout << "=== Reading header data ===" << endl;
+	//cout << "=== Reading header data ===" << endl;
 	//header bullshit over here
 
 	uint32_t headerSize;
@@ -150,15 +163,15 @@ int main(int argc, char const *argv[])
 	oread(Header.version, sizeof(uint32_t));
 	oread(Header.saveNumber, sizeof(uint32_t));
 
-	qread(Header.playerName.data, Header.playerName.prefix, sizeof(uint16_t));
+	qqread(Header.playerName.data, Header.playerName.prefix);
 
 	oread(Header.playerLevel, sizeof(uint32_t));
 
-	qread(Header.playerLocation.data, Header.playerLocation.prefix, sizeof(uint16_t));
+	qqread(Header.playerLocation.data, Header.playerLocation.prefix);
 
-	qread(Header.gameDate.data, Header.gameDate.prefix, sizeof(uint16_t));
+	qqread(Header.gameDate.data, Header.gameDate.prefix);
 
-	qread(Header.playerRaceEditorId.data, Header.playerRaceEditorId.prefix, sizeof(uint16_t));
+	qqread(Header.playerRaceEditorId.data, Header.playerRaceEditorId.prefix);
 
 	oread(Header.playerSex, sizeof(uint16_t));
 
@@ -174,67 +187,176 @@ int main(int argc, char const *argv[])
 
 	cout << Header << endl;
 
-
 	//Screenshot Data - skipped as for current needs is useless
 	//assuming we use Skyrim SE image data is uint8[4 * width * height]
-	auto bytes_to_skip = sizeof(4 * Header.shotHeight * Header.shotWidth * sizeof(uint8_t));
+	int bytes_per_pixel = (Header.version >= 12) ? (4) : (3);
+	int bytes_to_skip = bytes_per_pixel * Header.shotHeight * Header.shotWidth * sizeof(uint8_t);
 	file.ignore(bytes_to_skip);
+	cout << "Skipped screenshot data of " << bytes_to_skip / 1000.0 << "kB" << endl;
 
-	//Some unneeded info being skipped
+
+	//Compression lengths - any data past that point is compressed unless there is no compression
 	uint32_t uncompressedLen, compressedLen;
-	file.ignore(2 * sizeof(uint32_t));
-
-	uint8_t formVersion;
-	file.ignore(sizeof(uint8_t));
-
-	uint32_t plugInfoSize;
-	oread(plugInfoSize, sizeof(uint32_t));
+	oread(uncompressedLen, sizeof(uint32_t));
+	oread(compressedLen, sizeof(uint32_t));
 
 
-	//Plugin data over here (unused)
-	cout << "=== Plugins info ===" << endl;
-	file.ignore(plugInfoSize);
+	cout << "Compression type: ";
+	switch (int(Header.compressionType)) {
+	case 0:
+		cout << "NO COMPRESSION" << endl;
+		break;
+	case 1:
+		cout << "zLib (please investigate)" << endl;
+		break;
+	case 2:
+		cout << "LZ4 Block Format" << endl;
+		break;
+	}
+
+	cout << "Uncompressed: " << uncompressedLen / 1048576.0 << " MiB" << endl;
+	cout << "Compressed: " << compressedLen / 1048576.0 << " MiB" << endl;
 
 
-	//Presumably we just arrived at File Location table (hopefully)
-	cout << "=== File Location Table ===" << endl;
 
-	oread(FileLocationTable.formIDArrayCountOffset, sizeof(uint32_t));
-	oread(FileLocationTable.unknownTable3Offset, sizeof(uint32_t));
-	oread(FileLocationTable.globalDataTable1Offset, sizeof(uint32_t));
-	oread(FileLocationTable.globalDataTable2Offset, sizeof(uint32_t));
-	oread(FileLocationTable.changeFormsOffset, sizeof(uint32_t));
-	oread(FileLocationTable.globalDataTable3Offset, sizeof(uint32_t));
-	oread(FileLocationTable.globalDataTable1Count, sizeof(uint32_t));
-	oread(FileLocationTable.globalDataTable2Count, sizeof(uint32_t));
-	oread(FileLocationTable.globalDataTable3Count, sizeof(uint32_t));
-	oread(FileLocationTable.changeFormCount, sizeof(uint32_t));
+	//Here we decompress LZ4 compressed data
+	if (int(Header.compressionType) != 2) {
+		cout << "Only LZ4 compression is supported!" << endl;
+		return -1;
+	}
 
-	//TODO: just skip plugins and not write that to heap
 
+
+	char * compressedInput = new char[compressedLen];
+	char * decompressedOutput = new char[uncompressedLen];
+
+	file.read(compressedInput, compressedLen * sizeof(char));
+	LZ4_decompress_safe(compressedInput, decompressedOutput, compressedLen, uncompressedLen);
+
+
+	ofstream unpackedData("./tmp/")
+
+	delete[] compressedInput;
+
+
+
+
+
+
+	delete[] decompressedOutput;
+
+
+
+	//char * decompressedOutput = new char[3 * compressedLen + 8];
+
+
+
+	//delete[] compressedInput;
+	//delete[] decompressedOutput;
+
+
+
+	// uint8_t formVersion;
+	// oread(formVersion, sizeof(uint8_t));
+
+	// cout << "form version " << int(formVersion) << endl;
+
+
+	// //Plugin data over here (unused)
+	// uint32_t plugInfoSize;
+	// oread(plugInfoSize, sizeof(uint32_t));
+
+	// cout << " === Plugin info size: " << dec << plugInfoSize << endl;
+	// cout << "=== Plugins info ===" << endl;
+
+	// uint32_t factualPluginInfoSize = 0;
 
 	// oread(PluginInfo.pluginCount, sizeof(uint8_t));
-	// cout << "Plugin count:" << PluginInfo.pluginCount - '0' << endl;
+	// factualPluginInfoSize += sizeof(uint8_t);
 
 	// PluginInfo.plugins = new TES::wstring[PluginInfo.pluginCount];
+	// cout << (unsigned int)(PluginInfo.pluginCount) << endl;
+	// cout << bitset<8>(PluginInfo.pluginCount) << endl;
 
-	// for (auto i = 0; i < PluginInfo.pluginCount - '0'; i++) {
-	// 	qread(PluginInfo.plugins[i].data, PluginInfo.plugins[i].prefix, sizeof(uint16_t));
+	// for (int i = 0; i < PluginInfo.pluginCount; i++) {
+	// 	qqread(PluginInfo.plugins[i].data, PluginInfo.plugins[i].prefix);
+	// 	factualPluginInfoSize += sizeof(uint16_t) + PluginInfo.plugins[i].prefix * sizeof(char);
 	// }
 
-	// //Light plugin data over there (also unused)
-	// cout << "=== Light plugins info === " << endl;
+
+
+	// //file.ignore(plugInfoSize);
+
+	// //Light plugin data
+	// cout << "=== Light plugins info ===" << endl;
 
 	// oread(LightPluginInfo.pluginCount, sizeof(uint16_t));
-	// cout << "Plugin count:" << LightPluginInfo.pluginCount - '0' << endl;
+	// factualPluginInfoSize += sizeof(uint16_t);
+	// LightPluginInfo.plugins =  new TES::wstring[LightPluginInfo.pluginCount];
+	// cout << dec << LightPluginInfo.pluginCount << endl;
+	// cout << bitset<16>(LightPluginInfo.pluginCount) << endl;
 
-	// LightPluginInfo.plugins = new TES::wstring[LightPluginInfo.pluginCount];
-
-	// for (auto i = 0; i < LightPluginInfo.pluginCount - '0'; i++) {
-	// 	qread(LightPluginInfo.plugins[i].data, LightPluginInfo.plugins[i].prefix, sizeof(uint16_t));
+	// for (auto i = 0; i < LightPluginInfo.pluginCount; i++) {
+	// 	qqread(LightPluginInfo.plugins[i].data, LightPluginInfo.plugins[i].prefix);
+	// 	factualPluginInfoSize += sizeof(uint16_t) + LightPluginInfo.plugins[i].prefix * sizeof(char);
 	// }
 
-	//freeing memory here, probably should just change pointers to smart pointers
+	// cout << factualPluginInfoSize << endl;
+
+	// //Presumably we just arrived at File Location table (hopefully)
+	// cout << "=== File Location Table ===" << endl;
+
+	// oread(FileLocationTable.formIDArrayCountOffset, sizeof(uint32_t));
+	// oread(FileLocationTable.unknownTable3Offset, sizeof(uint32_t));
+	// oread(FileLocationTable.globalDataTable1Offset, sizeof(uint32_t));
+	// oread(FileLocationTable.globalDataTable2Offset, sizeof(uint32_t));
+	// oread(FileLocationTable.changeFormsOffset, sizeof(uint32_t));
+	// oread(FileLocationTable.globalDataTable3Offset, sizeof(uint32_t));
+	// oread(FileLocationTable.globalDataTable1Count, sizeof(uint32_t));
+	// oread(FileLocationTable.globalDataTable2Count, sizeof(uint32_t));
+	// oread(FileLocationTable.globalDataTable3Count, sizeof(uint32_t));
+	// oread(FileLocationTable.changeFormCount, sizeof(uint32_t));
+
+	// oread(FileLocationTable.unused, 15 * sizeof(uint32_t));
+
+
+
+	// //Global data table
+	// file.close();
+	// file.open(path_to_file, ios::in | ios::binary);
+
+	// cout << dec << FileLocationTable.globalDataTable1Offset << endl;
+
+
+	// //file.ignore()
+
+
+
+	// //TODO: just skip plugins and not write that to heap
+
+
+	// // oread(PluginInfo.pluginCount, sizeof(uint8_t));
+	// // cout << "Plugin count:" << PluginInfo.pluginCount - '0' << endl;
+
+	// // PluginInfo.plugins = new TES::wstring[PluginInfo.pluginCount];
+
+	// // for (auto i = 0; i < PluginInfo.pluginCount - '0'; i++) {
+	// // 	qqread(PluginInfo.plugins[i].data, PluginInfo.plugins[i].prefix, sizeof(uint16_t));
+	// // }
+
+	// // //Light plugin data over there (also unused)
+	// // cout << "=== Light plugins info === " << endl;
+
+	// // oread(LightPluginInfo.pluginCount, sizeof(uint16_t));
+	// // cout << "Plugin count:" << LightPluginInfo.pluginCount - '0' << endl;
+
+	// // LightPluginInfo.plugins = new TES::wstring[LightPluginInfo.pluginCount];
+
+	// // for (auto i = 0; i < LightPluginInfo.pluginCount - '0'; i++) {
+	// // 	qqread(LightPluginInfo.plugins[i].data, LightPluginInfo.plugins[i].prefix, sizeof(uint16_t));
+	// // }
+
+	// //freeing memory here, probably should just change pointers to smart pointers
 	delete[] Header.playerName.data;
 	delete[] Header.playerLocation.data;
 	delete[] Header.gameDate.data;
