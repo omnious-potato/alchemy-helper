@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <fstream>
 #include <cstring>
 #include <cstdint>
@@ -89,19 +90,31 @@ struct FileLocationTable {
 	uint32_t unused[15];
 } FileLocationTable;
 
-
-
 fstream file;
+istringstream udata;
+
+
+// template<typename T, typename U, typename V>
+// int basic_read(T &stream, U &destination, V amount){
+// 	stream.read(reinterpret_cast<char*>(&destination), amount);
+
+// 	return 0;
+// }
+
+// template<typename U, typename V>
+// int fread(U &dest, V amount){
+// 	return basic_read(file, dest, amount);
+// }
 
 template<typename T, typename U>
-int oread(T &path, U amount) {
+int fread(T &path, U amount) {
 	file.read(reinterpret_cast<char*>(&path), amount);
 
 	return 0;
 }
 
 template<typename T, typename U>
-int oread_alloc(T &path, U amount) {
+int fread_alloc(T &path, U amount) {
 	//reading a char data (presumably text string) of length derived prom prefix
 	//TESV::wstring type isn't zero-terminated, so we do it manually, thus size of allocated pointer is prefix + 1
 
@@ -114,21 +127,21 @@ int oread_alloc(T &path, U amount) {
 	return 0;
 }
 
-// template<typename V, typename T, typename U>
-// int qqread(V &data_path_to_read, T &path_to_read, U amount_to_read) {
-// 	oread(amount_to_read, sizeof(uint16_t));//WTF THIS WORKS? I AM CONFUSED (apparently template magic made a temp variable to replace constant sizeof())
-//												ZERO MAGIC here sizeof(path_to_read) == amount_to_read;
-// 	oread_alloc(data_path_to_read, amount_to_read);
+template<typename V, typename U>
+int ffread(V &data, U &prefix) {
+	fread(prefix, sizeof(prefix));
+	fread_alloc(data, prefix);
+	return 0;
+}
+
+
+// template<typename T, typename U>
+// int uread(T &path, U amount){
+// 	udata.read(reinterpret_cast<char*>(&path), amount);
+
 // 	return 0;
 // }
 
-
-template<typename V, typename U>
-int qqread(V &data, U &prefix) {
-	oread(prefix, sizeof(prefix));
-	oread_alloc(data, prefix);
-	return 0;
-}
 
 
 
@@ -159,31 +172,31 @@ int main(int argc, char const *argv[])
 	//header bullshit over here
 
 	uint32_t headerSize;
-	oread(headerSize, sizeof(uint32_t));
-	oread(Header.version, sizeof(uint32_t));
-	oread(Header.saveNumber, sizeof(uint32_t));
+	fread(headerSize, sizeof(uint32_t));
+	fread(Header.version, sizeof(uint32_t));
+	fread(Header.saveNumber, sizeof(uint32_t));
 
-	qqread(Header.playerName.data, Header.playerName.prefix);
+	ffread(Header.playerName.data, Header.playerName.prefix);
 
-	oread(Header.playerLevel, sizeof(uint32_t));
+	fread(Header.playerLevel, sizeof(uint32_t));
 
-	qqread(Header.playerLocation.data, Header.playerLocation.prefix);
+	ffread(Header.playerLocation.data, Header.playerLocation.prefix);
 
-	qqread(Header.gameDate.data, Header.gameDate.prefix);
+	ffread(Header.gameDate.data, Header.gameDate.prefix);
 
-	qqread(Header.playerRaceEditorId.data, Header.playerRaceEditorId.prefix);
+	ffread(Header.playerRaceEditorId.data, Header.playerRaceEditorId.prefix);
 
-	oread(Header.playerSex, sizeof(uint16_t));
+	fread(Header.playerSex, sizeof(uint16_t));
 
-	oread(Header.playerCurExp, sizeof(float32));
-	oread(Header.playerLvlUpExp, sizeof(float32));
+	fread(Header.playerCurExp, sizeof(float32));
+	fread(Header.playerLvlUpExp, sizeof(float32));
 
-	oread(Header.filetime, sizeof(FILETIME));
+	fread(Header.filetime, sizeof(FILETIME));
 
-	oread(Header.shotWidth, sizeof(uint32_t));
-	oread(Header.shotHeight, sizeof(uint32_t));
+	fread(Header.shotWidth, sizeof(uint32_t));
+	fread(Header.shotHeight, sizeof(uint32_t));
 
-	oread(Header.compressionType, sizeof(uint16_t));
+	fread(Header.compressionType, sizeof(uint16_t));
 
 	cout << Header << endl;
 
@@ -197,8 +210,8 @@ int main(int argc, char const *argv[])
 
 	//Compression lengths - any data past that point is compressed unless there is no compression
 	uint32_t uncompressedLen, compressedLen;
-	oread(uncompressedLen, sizeof(uint32_t));
-	oread(compressedLen, sizeof(uint32_t));
+	fread(uncompressedLen, sizeof(uint32_t));
+	fread(compressedLen, sizeof(uint32_t));
 
 
 	cout << "Compression type: ";
@@ -216,155 +229,41 @@ int main(int argc, char const *argv[])
 
 	cout << "Uncompressed: " << uncompressedLen / 1048576.0 << " MiB" << endl;
 	cout << "Compressed: " << compressedLen / 1048576.0 << " MiB" << endl;
-
-
-
-	//Here we decompress LZ4 compressed data
+	
 	if (int(Header.compressionType) != 2) {
 		cout << "Only LZ4 compression is supported!" << endl;
 		return -1;
 	}
 
-
-
 	char * compressedInput = new char[compressedLen];
 	char * decompressedOutput = new char[uncompressedLen];
 
+	//Here we decompress LZ4 compressed data
 	file.read(compressedInput, compressedLen * sizeof(char));
 	LZ4_decompress_safe(compressedInput, decompressedOutput, compressedLen, uncompressedLen);
-
-
-	ofstream unpackedData("./tmp/")
-
 	delete[] compressedInput;
 
+	fstream temp("./TEMP.dat", ios::trunc | ios::binary);
+	temp.write(decompressedOutput, uncompressedLen);
+	temp.close();
 
-
-
-
-
+	
+	//string str(decompressedOutput, uncompressedLen);
+	udata.str(string(decompressedOutput, uncompressedLen));
 	delete[] decompressedOutput;
+	
+	
 
+	uint8_t formVersion;
+	udata.read(reinterpret_cast<char*>(&formVersion), sizeof(uint8_t));
+	cout<<dec<<formVersion - '\0';
 
-
-	//char * decompressedOutput = new char[3 * compressedLen + 8];
-
-
-
-	//delete[] compressedInput;
-	//delete[] decompressedOutput;
-
-
-
-	// uint8_t formVersion;
-	// oread(formVersion, sizeof(uint8_t));
-
-	// cout << "form version " << int(formVersion) << endl;
-
-
-	// //Plugin data over here (unused)
-	// uint32_t plugInfoSize;
-	// oread(plugInfoSize, sizeof(uint32_t));
-
-	// cout << " === Plugin info size: " << dec << plugInfoSize << endl;
-	// cout << "=== Plugins info ===" << endl;
-
-	// uint32_t factualPluginInfoSize = 0;
-
-	// oread(PluginInfo.pluginCount, sizeof(uint8_t));
-	// factualPluginInfoSize += sizeof(uint8_t);
-
-	// PluginInfo.plugins = new TES::wstring[PluginInfo.pluginCount];
-	// cout << (unsigned int)(PluginInfo.pluginCount) << endl;
-	// cout << bitset<8>(PluginInfo.pluginCount) << endl;
-
-	// for (int i = 0; i < PluginInfo.pluginCount; i++) {
-	// 	qqread(PluginInfo.plugins[i].data, PluginInfo.plugins[i].prefix);
-	// 	factualPluginInfoSize += sizeof(uint16_t) + PluginInfo.plugins[i].prefix * sizeof(char);
-	// }
-
-
-
-	// //file.ignore(plugInfoSize);
-
-	// //Light plugin data
-	// cout << "=== Light plugins info ===" << endl;
-
-	// oread(LightPluginInfo.pluginCount, sizeof(uint16_t));
-	// factualPluginInfoSize += sizeof(uint16_t);
-	// LightPluginInfo.plugins =  new TES::wstring[LightPluginInfo.pluginCount];
-	// cout << dec << LightPluginInfo.pluginCount << endl;
-	// cout << bitset<16>(LightPluginInfo.pluginCount) << endl;
-
-	// for (auto i = 0; i < LightPluginInfo.pluginCount; i++) {
-	// 	qqread(LightPluginInfo.plugins[i].data, LightPluginInfo.plugins[i].prefix);
-	// 	factualPluginInfoSize += sizeof(uint16_t) + LightPluginInfo.plugins[i].prefix * sizeof(char);
-	// }
-
-	// cout << factualPluginInfoSize << endl;
-
-	// //Presumably we just arrived at File Location table (hopefully)
-	// cout << "=== File Location Table ===" << endl;
-
-	// oread(FileLocationTable.formIDArrayCountOffset, sizeof(uint32_t));
-	// oread(FileLocationTable.unknownTable3Offset, sizeof(uint32_t));
-	// oread(FileLocationTable.globalDataTable1Offset, sizeof(uint32_t));
-	// oread(FileLocationTable.globalDataTable2Offset, sizeof(uint32_t));
-	// oread(FileLocationTable.changeFormsOffset, sizeof(uint32_t));
-	// oread(FileLocationTable.globalDataTable3Offset, sizeof(uint32_t));
-	// oread(FileLocationTable.globalDataTable1Count, sizeof(uint32_t));
-	// oread(FileLocationTable.globalDataTable2Count, sizeof(uint32_t));
-	// oread(FileLocationTable.globalDataTable3Count, sizeof(uint32_t));
-	// oread(FileLocationTable.changeFormCount, sizeof(uint32_t));
-
-	// oread(FileLocationTable.unused, 15 * sizeof(uint32_t));
-
-
-
-	// //Global data table
-	// file.close();
-	// file.open(path_to_file, ios::in | ios::binary);
-
-	// cout << dec << FileLocationTable.globalDataTable1Offset << endl;
-
-
-	// //file.ignore()
-
-
-
-	// //TODO: just skip plugins and not write that to heap
-
-
-	// // oread(PluginInfo.pluginCount, sizeof(uint8_t));
-	// // cout << "Plugin count:" << PluginInfo.pluginCount - '0' << endl;
-
-	// // PluginInfo.plugins = new TES::wstring[PluginInfo.pluginCount];
-
-	// // for (auto i = 0; i < PluginInfo.pluginCount - '0'; i++) {
-	// // 	qqread(PluginInfo.plugins[i].data, PluginInfo.plugins[i].prefix, sizeof(uint16_t));
-	// // }
-
-	// // //Light plugin data over there (also unused)
-	// // cout << "=== Light plugins info === " << endl;
-
-	// // oread(LightPluginInfo.pluginCount, sizeof(uint16_t));
-	// // cout << "Plugin count:" << LightPluginInfo.pluginCount - '0' << endl;
-
-	// // LightPluginInfo.plugins = new TES::wstring[LightPluginInfo.pluginCount];
-
-	// // for (auto i = 0; i < LightPluginInfo.pluginCount - '0'; i++) {
-	// // 	qqread(LightPluginInfo.plugins[i].data, LightPluginInfo.plugins[i].prefix, sizeof(uint16_t));
-	// // }
-
-	// //freeing memory here, probably should just change pointers to smart pointers
+	//freeing memory here, probably should just change pointers to smart pointers
+	
 	delete[] Header.playerName.data;
 	delete[] Header.playerLocation.data;
 	delete[] Header.gameDate.data;
 	delete[] Header.playerRaceEditorId.data;
-
-	// for (auto i = 0; i < PluginInfo.pluginCount; i++)
-	// 	delete[] PluginInfo.plugins[i].data;
-	// delete[] PluginInfo.plugins;
 
 	file.close();
 
