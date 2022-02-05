@@ -90,59 +90,39 @@ struct FileLocationTable {
 	uint32_t unused[15];
 } FileLocationTable;
 
+
+template<typename T, typename U, typename V>
+int basic_plain_read(T &stream, U &dst, V amount) {
+
+	stream.read(reinterpret_cast<char*>(&dst), amount);
+
+	return 0;
+}
+
+template<typename T, typename U, typename V>
+int basic_prefixed_read(T &stream, U &dst, V prefix) {
+
+	basic_plain_read(stream, prefix, sizeof(V));
+	dst = new char[static_cast<int>(prefix) + 1];//allocating memory
+	basic_plain_read(stream, *dst, prefix);
+	dst[static_cast<int>(prefix)] = '\0';
+
+	return 0;
+}
+
+
 fstream file;
 istringstream udata;
 
-
-// template<typename T, typename U, typename V>
-// int basic_read(T &stream, U &destination, V amount){
-// 	stream.read(reinterpret_cast<char*>(&destination), amount);
-
-// 	return 0;
-// }
-
-// template<typename U, typename V>
-// int fread(U &dest, V amount){
-// 	return basic_read(file, dest, amount);
-// }
-
-template<typename T, typename U>
-int fread(T &path, U amount) {
-	file.read(reinterpret_cast<char*>(&path), amount);
-
-	return 0;
+template<typename T>
+int fread(T &dst) {
+	return basic_plain_read(file, dst, sizeof(T));
 }
 
-template<typename T, typename U>
-int fread_alloc(T &path, U amount) {
-	//reading a char data (presumably text string) of length derived prom prefix
-	//TESV::wstring type isn't zero-terminated, so we do it manually, thus size of allocated pointer is prefix + 1
-
-	path = new char[static_cast<int>(amount) + 1];
-
-	file.read(reinterpret_cast<char*>(path), amount * sizeof(char));
-
-	path[amount * sizeof(char)] = '\0';
-
-	return 0;
+template<typename U, typename V>
+int ffread(U &dst, V prefix) {
+	return basic_prefixed_read(file, dst, prefix);
 }
-
-template<typename V, typename U>
-int ffread(V &data, U &prefix) {
-	fread(prefix, sizeof(prefix));
-	fread_alloc(data, prefix);
-	return 0;
-}
-
-
-// template<typename T, typename U>
-// int uread(T &path, U amount){
-// 	udata.read(reinterpret_cast<char*>(&path), amount);
-
-// 	return 0;
-// }
-
-
 
 
 int main(int argc, char const *argv[])
@@ -172,31 +152,28 @@ int main(int argc, char const *argv[])
 	//header bullshit over here
 
 	uint32_t headerSize;
-	fread(headerSize, sizeof(uint32_t));
-	fread(Header.version, sizeof(uint32_t));
-	fread(Header.saveNumber, sizeof(uint32_t));
-
+	
+	fread(headerSize);
+	fread(Header.version);
+	fread(Header.saveNumber);
+	
 	ffread(Header.playerName.data, Header.playerName.prefix);
-
-	fread(Header.playerLevel, sizeof(uint32_t));
-
+	
+	fread(Header.playerLevel);
+	
 	ffread(Header.playerLocation.data, Header.playerLocation.prefix);
-
 	ffread(Header.gameDate.data, Header.gameDate.prefix);
-
 	ffread(Header.playerRaceEditorId.data, Header.playerRaceEditorId.prefix);
+	
+	fread(Header.playerSex);
+	fread(Header.playerCurExp);
+	fread(Header.playerLvlUpExp);
+	fread(Header.filetime);
+	fread(Header.shotWidth);
+	fread(Header.shotHeight);
+	fread(Header.compressionType);
 
-	fread(Header.playerSex, sizeof(uint16_t));
 
-	fread(Header.playerCurExp, sizeof(float32));
-	fread(Header.playerLvlUpExp, sizeof(float32));
-
-	fread(Header.filetime, sizeof(FILETIME));
-
-	fread(Header.shotWidth, sizeof(uint32_t));
-	fread(Header.shotHeight, sizeof(uint32_t));
-
-	fread(Header.compressionType, sizeof(uint16_t));
 
 	cout << Header << endl;
 
@@ -210,8 +187,8 @@ int main(int argc, char const *argv[])
 
 	//Compression lengths - any data past that point is compressed unless there is no compression
 	uint32_t uncompressedLen, compressedLen;
-	fread(uncompressedLen, sizeof(uint32_t));
-	fread(compressedLen, sizeof(uint32_t));
+	fread(uncompressedLen);
+	fread(compressedLen);
 
 
 	cout << "Compression type: ";
@@ -229,7 +206,7 @@ int main(int argc, char const *argv[])
 
 	cout << "Uncompressed: " << uncompressedLen / 1048576.0 << " MiB" << endl;
 	cout << "Compressed: " << compressedLen / 1048576.0 << " MiB" << endl;
-	
+
 	if (int(Header.compressionType) != 2) {
 		cout << "Only LZ4 compression is supported!" << endl;
 		return -1;
@@ -239,7 +216,7 @@ int main(int argc, char const *argv[])
 	char * decompressedOutput = new char[uncompressedLen];
 
 	//Here we decompress LZ4 compressed data
-	file.read(compressedInput, compressedLen * sizeof(char));
+	file.read(compressedInput, compressedLen);
 	LZ4_decompress_safe(compressedInput, decompressedOutput, compressedLen, uncompressedLen);
 	delete[] compressedInput;
 
@@ -247,19 +224,19 @@ int main(int argc, char const *argv[])
 	temp.write(decompressedOutput, uncompressedLen);
 	temp.close();
 
-	
+
 	//string str(decompressedOutput, uncompressedLen);
 	udata.str(string(decompressedOutput, uncompressedLen));
 	delete[] decompressedOutput;
-	
-	
+
+
 
 	uint8_t formVersion;
 	udata.read(reinterpret_cast<char*>(&formVersion), sizeof(uint8_t));
-	cout<<dec<<formVersion - '\0';
+	cout << dec << formVersion - '\0';
 
 	//freeing memory here, probably should just change pointers to smart pointers
-	
+
 	delete[] Header.playerName.data;
 	delete[] Header.playerLocation.data;
 	delete[] Header.gameDate.data;
