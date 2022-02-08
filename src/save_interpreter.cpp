@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <sstream>
 #include <fstream>
@@ -8,6 +9,7 @@
 #include <bitset>
 #include <variant>
 #include <cassert>
+#include <cmath>
 
 #include "lz4.h"
 
@@ -35,6 +37,12 @@ struct wstring
 	char *data = NULL;
 };
 
+struct RefID//needs improvement
+{
+	uint8_t byte0;
+	uint8_t byte1;
+	uint8_t byte2;
+};
 }
 
 
@@ -130,11 +138,20 @@ struct MiscStats{
 }MiscStats;
 
 
-
 struct GlobalData {
 	uint32_t type;
 	uint32_t length;
 	uint8_t *data = NULL;//note: originally it's uint8, but for purpose of having output stream it's changes to char
+};
+
+struct ChangeForm {
+	TES::RefID formID;
+	uint32_t changeFlags;
+	uint8_t type;
+	uint8_t version;
+	uint32_t length1;//variable size
+	uint32_t length2;//variable size
+	uint8_t *data = NULL;
 };
 
 template<typename T, typename U, typename V>
@@ -146,16 +163,16 @@ int universalRead(T &stream, U &dst, V amount) {
 }
 
 template<typename T, typename U, typename V>
-int universalBulkRead(T &stream, U * &dst, V &prefix, int optional = 0) { //optional parameter is currently only determines whether data will be null-terminated
-
-	universalRead(stream, prefix, sizeof(V));
+int universalBulkRead(T &stream, U * &dst, V &prefix, int key = 0) { //optional parameter is currently only determines whether data will be null-terminated
+	if((key & 2) >> 1 == 0){
+		universalRead(stream, prefix, sizeof(V));	
+	}
+	
 	dst = new U[static_cast<int>(prefix) + 1];//allocating memory
 	universalRead(stream, *dst, prefix);
 
-	if (optional == 0)
-		//dst[static_cast<int>(prefix)] = '\0';
+	if (key & 1 == 0)
 		dst[static_cast<int>(prefix)] = '\0';
-
 
 	return 0;
 }
@@ -190,6 +207,9 @@ int unpackedBulkRead(U &dst, V &prefix) {
 
 int main(int argc, char const *argv[])
 {
+// 	This section purely extracts savefile path and 
+//	checks tha save has proper magic numebr dedicated for .ess files
+
 	if (argc < 2) {
 		cout << "Please provide path for savefile location" << endl;
 		return 0;
@@ -199,17 +219,14 @@ int main(int argc, char const *argv[])
 
 	file.open(path_to_file, ios::in | ios::binary);
 
-	char magic[13] = {0};
-
+	char * magic = new char[13];
 	file.read(magic, 13);
 
-
-	if (strcmp(magic, "TESV_SAVEGAME") != 0) {
-		cout << magic << endl;
+	if (strncmp(magic, "TESV_SAVEGAME", 13) != 0) {
+		delete[] magic;
 		cout << "Please provide correct Skyrim savefile!" << endl;
 		return -1;
 	}
-
 
 
 //	Header processing below, includes basic info like name, race, level, location of a player in that save,
@@ -238,9 +255,7 @@ int main(int argc, char const *argv[])
 	fileRead(Header.compressionType);
 
 	cout << Header << endl;
-
 //	End of Header Section
-
 
 
 //	Screenshot Data - skipped as for current needs is useless
@@ -251,7 +266,6 @@ int main(int argc, char const *argv[])
 	file.ignore(bytes_to_skip);
 	cout << "Skipped screenshot data of " << bytes_to_skip / 1000.0 << "kB" << endl;
 //	End of screenshot section
-
 
 
 // 	Compression/decompression part
@@ -305,7 +319,6 @@ int main(int argc, char const *argv[])
 //	End of decompression section
 
 
-
 //	Plugin section
 //	Contains plugin info divided in two sections - plain PluginInfo and LightPluginInfo (mostly .esl or .esl'ified files)
 	uint8_t formVersion;
@@ -323,9 +336,9 @@ int main(int argc, char const *argv[])
 	PluginInfo.plugins = new TES::wstring[PluginInfo.pluginCount];
 
 
-	for (uint i = 0; i < PluginInfo.pluginCount; i++) {
+	for (uint32_t i = 0; i < PluginInfo.pluginCount; i++) {
 		unpackedBulkRead(PluginInfo.plugins[i].data, PluginInfo.plugins[i].prefix);
-		cout << PluginInfo.plugins[i].data << endl;
+		//cout << PluginInfo.plugins[i].data << endl;
 	}
 
 	//same with light plugins
@@ -334,11 +347,10 @@ int main(int argc, char const *argv[])
 
 	LightPluginInfo.plugins = new TES::wstring[LightPluginInfo.pluginCount];
 
-	for (uint i = 0; i < LightPluginInfo.pluginCount; i++)	{
+	for (uint32_t i = 0; i < LightPluginInfo.pluginCount; i++)	{
 		unpackedBulkRead(LightPluginInfo.plugins[i].data, LightPluginInfo.plugins[i].prefix);
-		cout << LightPluginInfo.plugins[i].data << endl;
+		//cout << LightPluginInfo.plugins[i].data << endl;
 	}
-
 //	End of Plugins and Light Plugins section
 
 
@@ -361,22 +373,27 @@ int main(int argc, char const *argv[])
 		unpackedRead(FileLocationTable.unused[i]);
 
 	cout << FileLocationTable << endl;
-
 //	End of File Location Table
 
 
-// Global Data Table 1(first)
-// Character stats should be there
-
+// Global Data Table 1, Global Data Table 2
+// Too bored rn to analyze data content over there
 
 	vector<struct GlobalData> globalDataTable1(FileLocationTable.globalDataTable1Count);
+	vector<struct GlobalData> globalDataTable2(FileLocationTable.globalDataTable2Count);
 
 	for (uint32_t i = 0; i < FileLocationTable.globalDataTable1Count; ++i)	{
 		unpackedRead(globalDataTable1[i].type);
 		unpackedBulkRead(globalDataTable1[i].data, globalDataTable1[i].length);
 	}
 
-	//type 0 should be Stats MiscData
+	for (uint32_t i = 0; i < FileLocationTable.globalDataTable2Count; ++i)	{
+		unpackedRead(globalDataTable2[i].type);
+		unpackedBulkRead(globalDataTable2[i].data, globalDataTable2[i].length);
+	}
+
+	//Here we parse one of the elements of Global Data
+	//Type 0 is MiscData
 	assert(globalDataTable1[0].type == 0);	
 	
 	istringstream globalData;
@@ -390,17 +407,48 @@ int main(int argc, char const *argv[])
 		universalBulkRead(globalData, MiscStats.stats[i].name.data, MiscStats.stats[i].name.prefix);
 		universalRead(globalData, MiscStats.stats[i].category, sizeof(uint8_t));
 		universalRead(globalData, MiscStats.stats[i].value, sizeof(int32_t));
-		if(MiscStats.stats[i].category == 6)
-			cout<<MiscStats.stats[i].name.data<<'|';
+		
+		//cout<<MiscStats.stats[i].name.data<<'|';
 	}
 	
 
+	//Type 1 is PlayerLocation
+	assert(globalDataTable1[1].type == 1);
+//End of Global Data Table data
+
+//Change Forms section
+
+	vector<struct ChangeForm> changeForms(FileLocationTable.changeFormCount);
+	
+	for(uint32_t i = 0; i < FileLocationTable.changeFormCount; i++){
+		unpackedRead(changeForms[i].formID);
+		unpackedRead(changeForms[i].changeFlags);
+		unpackedRead(changeForms[i].type);
+		unpackedRead(changeForms[i].version);
+
+		uint8_t data_form_type = changeForms[i].type & 63; //six lower bits representung type of the form
+		uint8_t data_form_length = (changeForms[i].type - data_form_type) >> 6;
+
+		cout<<pow(2, data_form_length)<<endl;
+
+		universalRead(udata, changeForms[i].length1, pow(2, data_form_length));
+		universalRead(udata, changeForms[i].length2, pow(2, data_form_length));
+		
+		changeForms[i].data = new uint8_t[changeForms[i].length1];		
+		universalRead(udata, changeForms[i].data, changeForms[i].length1 * sizeof(uint8_t));
+	}
+	cout<<"SIZE:"<<sizeof(changeForms[0].formID)<<endl;
+//End of Change Forms Section
 
 //	freeing memory here, probably should just change pointers to smart pointers
 
+	for(uint32_t i = 0; i < FileLocationTable.changeFormCount; i++){
+		delete[] changeForms[i].data;
+	}
+
+
 	for (uint32_t i = 0; i < FileLocationTable.globalDataTable1Count; ++i)
 		delete[] globalDataTable1[i].data;
-
 
 	for (uint16_t i = 0; i < LightPluginInfo.pluginCount; ++i)
 		delete[] LightPluginInfo.plugins[i].data;
@@ -414,6 +462,8 @@ int main(int argc, char const *argv[])
 	delete[] Header.playerLocation.data;
 	delete[] Header.gameDate.data;
 	delete[] Header.playerRaceEditorId.data;
+
+	delete magic;
 
 	return 0;
 }
