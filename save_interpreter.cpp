@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <vector>
 #include <bitset>
+#include <variant>
+#include <cassert>
 
 #include "lz4.h"
 
@@ -65,14 +67,12 @@ std::ostream& operator<<(std::ostream &out, const struct Header &_header) {
 
 struct PluginInfo {
 	uint8_t pluginCount;
-	//vector<TES::wstring> plugins;
 	TES::wstring *plugins = NULL;
 } PluginInfo;
 
 
 struct LightPluginInfo {
 	uint16_t pluginCount;
-	//vector<TES::wstring> plugins;
 	TES::wstring *plugins = NULL;
 } LightPluginInfo;
 
@@ -91,23 +91,54 @@ struct FileLocationTable {
 	uint32_t unused[15];
 } FileLocationTable;
 
-std::ostream& operator<<(std::ostream &out, const struct FileLocationTable &_file_table) {
-	out << "formID offset: " << _file_table.formIDArrayCountOffset << endl \
-	    << "globalDataTable1Offset: " << _file_table.globalDataTable1Offset << endl \
-	    << "globalDataTable2Offset: " << _file_table.globalDataTable2Offset << endl \
-	    << "globalDataTable3Offset: " << _file_table.globalDataTable3Offset;
+template <unsigned int N>
+ostream& operator<<(ostream &out, const uint32_t (&arr)[N]) {
+	for (unsigned long i = 0; i < N; ++i)
+	{
+		out << arr[i] << ' ';
+	}
 	return out;
 }
+
+ostream& operator<<(ostream &out, const struct FileLocationTable &_file_table) {
+	out << "formIDArrayCountOffset: " 	<< _file_table.formIDArrayCountOffset 	<< endl \
+	    << "unknownTable3Offset: " 		<< _file_table.unknownTable3Offset 		<< endl \
+	    << "globalDataTable1Offset: " 	<< _file_table.globalDataTable1Offset 	<< endl \
+	    << "globalDataTable2Offset: " 	<< _file_table.globalDataTable2Offset 	<< endl \
+	    << "globalDataTable3Offset: " 	<< _file_table.globalDataTable3Offset 	<< endl \
+	    << "changeFormsOffset: " 		<< _file_table.changeFormsOffset 		<< endl \
+	    << "globalDataTable1Count: " 	<< _file_table.globalDataTable1Count 	<< endl \
+	    << "globalDataTable2Count: " 	<< _file_table.globalDataTable2Count 	<< endl \
+	    << "globalDataTable3Count: " 	<< _file_table.globalDataTable3Count 	<< endl \
+	    << "changeFormCount: " 			<< _file_table.changeFormCount 			<< endl \
+	    << "unused: " 					<< _file_table.unused;
+
+	return out;
+}
+
+
+struct MiscStat{
+	TES::wstring name;
+	uint8_t category;
+	int32_t value;
+};
+
+
+struct MiscStats{
+	uint32_t count;
+	MiscStat *stats = NULL;
+}MiscStats;
+
 
 
 struct GlobalData {
 	uint32_t type;
 	uint32_t length;
-	uint8_t *data = NULL;
+	uint8_t *data = NULL;//note: originally it's uint8, but for purpose of having output stream it's changes to char
 };
 
 template<typename T, typename U, typename V>
-int basic_plain_read(T &stream, U &dst, V amount) {
+int universalRead(T &stream, U &dst, V amount) {
 
 	stream.read(reinterpret_cast<char*>(&dst), amount);
 
@@ -115,11 +146,11 @@ int basic_plain_read(T &stream, U &dst, V amount) {
 }
 
 template<typename T, typename U, typename V>
-int basic_prefixed_read(T &stream, U * &dst, V prefix, int optional = 0) { //optional parameter is currently only determines whether char* string will be null-terminated
+int universalBulkRead(T &stream, U * &dst, V &prefix, int optional = 0) { //optional parameter is currently only determines whether data will be null-terminated
 
-	basic_plain_read(stream, prefix, sizeof(V));
+	universalRead(stream, prefix, sizeof(V));
 	dst = new U[static_cast<int>(prefix) + 1];//allocating memory
-	basic_plain_read(stream, *dst, prefix);
+	universalRead(stream, *dst, prefix);
 
 	if (optional == 0)
 		//dst[static_cast<int>(prefix)] = '\0';
@@ -133,26 +164,26 @@ int basic_prefixed_read(T &stream, U * &dst, V prefix, int optional = 0) { //opt
 fstream file;
 
 template<typename T>
-int fread(T &dst) {
-	return basic_plain_read(file, dst, sizeof(T));
+int fileRead(T &dst) {
+	return universalRead(file, dst, sizeof(T));
 }
 
 template<typename U, typename V>
-int ffread(U &dst, V prefix) {
-	return basic_prefixed_read(file, dst, prefix);
+int fileBulkRead(U &dst, V prefix) {
+	return universalBulkRead(file, dst, prefix);
 }
 
 
 istringstream udata;
 
 template<typename T>
-int uread(T &dst) {
-	return basic_plain_read(udata, dst, sizeof(T));
+int unpackedRead(T &dst) {
+	return universalRead(udata, dst, sizeof(T));
 }
 
 template<typename U, typename V>
-int uuread(U &dst, V prefix) {
-	return basic_prefixed_read(udata, dst, prefix);
+int unpackedBulkRead(U &dst, V &prefix) {
+	return universalBulkRead(udata, dst, prefix);
 }
 
 
@@ -186,25 +217,25 @@ int main(int argc, char const *argv[])
 
 	uint32_t headerSize;
 
-	fread(headerSize);
-	fread(Header.version);
-	fread(Header.saveNumber);
+	fileRead(headerSize);
+	fileRead(Header.version);
+	fileRead(Header.saveNumber);
 
-	ffread(Header.playerName.data, Header.playerName.prefix);
+	fileBulkRead(Header.playerName.data, Header.playerName.prefix);
 
-	fread(Header.playerLevel);
+	fileRead(Header.playerLevel);
 
-	ffread(Header.playerLocation.data, Header.playerLocation.prefix);
-	ffread(Header.gameDate.data, Header.gameDate.prefix);
-	ffread(Header.playerRaceEditorId.data, Header.playerRaceEditorId.prefix);
+	fileBulkRead(Header.playerLocation.data, Header.playerLocation.prefix);
+	fileBulkRead(Header.gameDate.data, Header.gameDate.prefix);
+	fileBulkRead(Header.playerRaceEditorId.data, Header.playerRaceEditorId.prefix);
 
-	fread(Header.playerSex);
-	fread(Header.playerCurExp);
-	fread(Header.playerLvlUpExp);
-	fread(Header.filetime);
-	fread(Header.shotWidth);
-	fread(Header.shotHeight);
-	fread(Header.compressionType);
+	fileRead(Header.playerSex);
+	fileRead(Header.playerCurExp);
+	fileRead(Header.playerLvlUpExp);
+	fileRead(Header.filetime);
+	fileRead(Header.shotWidth);
+	fileRead(Header.shotHeight);
+	fileRead(Header.compressionType);
 
 	cout << Header << endl;
 
@@ -226,12 +257,12 @@ int main(int argc, char const *argv[])
 // 	Compression/decompression part
 //
 //  Further implementation assumes usage of LZ4 compression, decompression is done via corresponding C library with header file "lz4.h".
-//  After that section bytes are read from string stream (using 'uread' and 'uuread' functions opposing previously used 'fread', 'ffread()')
+//  After that section bytes are read from string stream (using 'unpackedRead' and 'unpackedBulkRead' functions opposing previously used 'fileRead', 'fileBulkRead()')
 //	made from decompressed char* data and not from source savefile.
 
 	uint32_t uncompressedLen, compressedLen;
-	fread(uncompressedLen);
-	fread(compressedLen);
+	fileRead(uncompressedLen);
+	fileRead(compressedLen);
 
 
 	cout << "Compression type: ";
@@ -264,8 +295,9 @@ int main(int argc, char const *argv[])
 	delete[] compressedInput;
 
 
-	ofstream out("./REST");//should be empty, because there no footer after compressed chunk of savefile
+	ofstream out("./REST");//should be empty, because there should be no footer after compressed chunk of savefile
 	out << file.rdbuf();
+	out.close();
 	file.close();
 
 	udata.str(string(decompressedOutput, uncompressedLen));
@@ -278,57 +310,55 @@ int main(int argc, char const *argv[])
 //	Contains plugin info divided in two sections - plain PluginInfo and LightPluginInfo (mostly .esl or .esl'ified files)
 	uint8_t formVersion;
 	//udata.read(reinterpret_cast<char*>(&formVersion), sizeof(uint8_t));
-	uread(formVersion);
+	unpackedRead(formVersion);
 	cout << "Form version: " << dec << formVersion - '\0' << endl;
 
 	uint32_t pluginInfoSize;
+	unpackedRead(pluginInfoSize);
+	cout << "PluginInfoSize: " << pluginInfoSize << endl;
 
-	uread(pluginInfoSize);
-
-	uread(PluginInfo.pluginCount);
+	unpackedRead(PluginInfo.pluginCount);
 	cout << "Plugins: " << dec << PluginInfo.pluginCount - '\0' << endl;
 
 	PluginInfo.plugins = new TES::wstring[PluginInfo.pluginCount];
 
 
 	for (uint i = 0; i < PluginInfo.pluginCount; i++) {
-		uuread(PluginInfo.plugins[i].data, PluginInfo.plugins[i].prefix);
-		//cout<<PluginInfo.plugins[i].data<<endl;
+		unpackedBulkRead(PluginInfo.plugins[i].data, PluginInfo.plugins[i].prefix);
+		cout << PluginInfo.plugins[i].data << endl;
 	}
 
 	//same with light plugins
-	uread(LightPluginInfo.pluginCount);
+	unpackedRead(LightPluginInfo.pluginCount);
 	cout << "Light plugins: " << dec << LightPluginInfo.pluginCount - '\0' << endl;
 
 	LightPluginInfo.plugins = new TES::wstring[LightPluginInfo.pluginCount];
 
-	for (uint i = 0; i < LightPluginInfo.pluginCount; i++) {
-		uuread(LightPluginInfo.plugins[i].data, LightPluginInfo.plugins[i].prefix);
-		//cout<<LightPluginInfo.plugins[i].data<<endl;
+	for (uint i = 0; i < LightPluginInfo.pluginCount; i++)	{
+		unpackedBulkRead(LightPluginInfo.plugins[i].data, LightPluginInfo.plugins[i].prefix);
+		cout << LightPluginInfo.plugins[i].data << endl;
 	}
 
 //	End of Plugins and Light Plugins section
 
 
-
 //	File Location Table
-// 	Contains various tables offsets
-//	(pretty much useless to us because by that far we already at globalDataTable1 and this offsets probably measured for uncompressed data)
+// 	Contains various tables offsets and counts
 
-	uread(FileLocationTable.formIDArrayCountOffset);
-	uread(FileLocationTable.formIDArrayCountOffset);
-	uread(FileLocationTable.unknownTable3Offset);
-	uread(FileLocationTable.globalDataTable1Offset);
-	uread(FileLocationTable.globalDataTable2Offset);
-	uread(FileLocationTable.changeFormsOffset);
-	uread(FileLocationTable.globalDataTable3Offset);
-	uread(FileLocationTable.globalDataTable1Count);
-	uread(FileLocationTable.globalDataTable2Count);
-	uread(FileLocationTable.globalDataTable3Count);
-	uread(FileLocationTable.changeFormCount);
+	unpackedRead(FileLocationTable.formIDArrayCountOffset);
+	unpackedRead(FileLocationTable.unknownTable3Offset);
+	unpackedRead(FileLocationTable.globalDataTable1Offset);
+	unpackedRead(FileLocationTable.globalDataTable2Offset);
+	unpackedRead(FileLocationTable.changeFormsOffset);
+	unpackedRead(FileLocationTable.globalDataTable3Offset);
+	unpackedRead(FileLocationTable.globalDataTable1Count);
+	unpackedRead(FileLocationTable.globalDataTable2Count);
+	unpackedRead(FileLocationTable.globalDataTable3Count);
+	unpackedRead(FileLocationTable.changeFormCount);
+
 
 	for (int i = 0; i < 15; ++i)
-		uread(FileLocationTable.unused[i]);
+		unpackedRead(FileLocationTable.unused[i]);
 
 	cout << FileLocationTable << endl;
 
@@ -338,30 +368,32 @@ int main(int argc, char const *argv[])
 // Global Data Table 1(first)
 // Character stats should be there
 
-	ofstream dbg("./DEBUG");
-	out<<udata.rdbuf();
-	return 0;
 
-	// vector<struct GlobalData> globalDataTable1(FileLocationTable.globalDataTable1Count);
+	vector<struct GlobalData> globalDataTable1(FileLocationTable.globalDataTable1Count);
 
-	// for (uint32_t i = 0; i < FileLocationTable.globalDataTable1Count; ++i)
-	// {
-	// 	uread(globalDataTable1[i].type);
-	// 	uread(globalDataTable1[i].length);
-	// 	cout<<globalDataTable1[i].type<<"|"<<globalDataTable1[i].length<<endl;
+	for (uint32_t i = 0; i < FileLocationTable.globalDataTable1Count; ++i)	{
+		unpackedRead(globalDataTable1[i].type);
+		unpackedBulkRead(globalDataTable1[i].data, globalDataTable1[i].length);
+	}
 
+	//type 0 should be Stats MiscData
+	assert(globalDataTable1[0].type == 0);	
+	
+	istringstream globalData;
+	globalData.str(string(reinterpret_cast<char*>(globalDataTable1[0].data), globalDataTable1[0].length));
 
-	// 	globalDataTable1[i].data = new uint8_t[globalDataTable1[i].length];
-		
-	// 	for (uint32_t j = 0; j < globalDataTable1[i].length; ++j)
-	// 	{
-	// 		uread(globalDataTable1[i].data[j]);
+	universalRead(globalData, MiscStats.count, sizeof(uint32_t));
+	MiscStats.stats = new MiscStat[MiscStats.count];
 
-	// 	}
-
-
-	// }
-
+	for (uint32_t i = 0; i < MiscStats.count; ++i)
+	{
+		universalBulkRead(globalData, MiscStats.stats[i].name.data, MiscStats.stats[i].name.prefix);
+		universalRead(globalData, MiscStats.stats[i].category, sizeof(uint8_t));
+		universalRead(globalData, MiscStats.stats[i].value, sizeof(int32_t));
+		if(MiscStats.stats[i].category == 6)
+			cout<<MiscStats.stats[i].name.data<<'|';
+	}
+	
 
 
 //	freeing memory here, probably should just change pointers to smart pointers
@@ -372,18 +404,16 @@ int main(int argc, char const *argv[])
 
 	for (uint16_t i = 0; i < LightPluginInfo.pluginCount; ++i)
 		delete[] LightPluginInfo.plugins[i].data;
-	delete LightPluginInfo.plugins;
+	delete[] LightPluginInfo.plugins;
 
 	for (uint8_t i = 0; i < PluginInfo.pluginCount; ++i)
 		delete[] PluginInfo.plugins[i].data;
-	delete PluginInfo.plugins;
+	delete[] PluginInfo.plugins;
 
 	delete[] Header.playerName.data;
 	delete[] Header.playerLocation.data;
 	delete[] Header.gameDate.data;
 	delete[] Header.playerRaceEditorId.data;
-
-	file.close();
 
 	return 0;
 }
