@@ -11,6 +11,7 @@ project(AlchemyTESV
 
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_BUILD_TYPE Debug)
 add_executable(save_interpreter src/save_interpreter.cpp)
 
-target_link_libraries(save_interpreter lz4 -static)
+target_link_libraries(save_interpreter lz4)
