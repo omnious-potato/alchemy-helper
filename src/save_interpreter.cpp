@@ -99,15 +99,6 @@ struct FileLocationTable {
 	uint32_t unused[15];
 };
 
-template <unsigned int N>
-ostream& operator<<(ostream &out, const uint32_t (&arr)[N]) {
-	for (unsigned long i = 0; i < N; ++i)
-	{
-		out << arr[i] << ' ';
-	}
-	return out;
-}
-
 ostream& operator<<(ostream &out, const struct FileLocationTable &_file_table) {
 	out << "formIDArrayCountOffset: " 	<< _file_table.formIDArrayCountOffset 	<< endl \
 	    << "unknownTable3Offset: " 		<< _file_table.unknownTable3Offset 		<< endl \
@@ -125,14 +116,14 @@ ostream& operator<<(ostream &out, const struct FileLocationTable &_file_table) {
 }
 
 
-struct MiscStat{
+struct MiscStat {
 	TES::wstring name;
 	uint8_t category;
 	int32_t value;
 };
 
 
-struct MiscStats{
+struct MiscStats {
 	uint32_t count;
 	MiscStat *stats = NULL;
 };
@@ -141,7 +132,7 @@ struct MiscStats{
 struct GlobalData {
 	uint32_t type;
 	uint32_t length;
-	uint8_t *data = NULL;//note: originally it's uint8, but for purpose of having output stream it's changes to char
+	uint8_t *data = NULL;
 };
 
 struct ChangeForm {
@@ -149,8 +140,8 @@ struct ChangeForm {
 	uint32_t changeFlags;
 	uint8_t type;
 	uint8_t version;
-	uint32_t length1;//variable size
-	uint32_t length2;//variable size
+	uint32_t length1;//variable size (lengh of data)
+	uint32_t length2;//variable size (uncompressed length,  zero - if non-compressed)
 	uint8_t *data = NULL;
 };
 
@@ -164,15 +155,15 @@ int universalRead(T &stream, U &dst, V amount) {
 
 template<typename T, typename U, typename V>
 int universalBulkRead(T &stream, U * &dst, V &prefix, int key = 0) { //optional parameter is currently only determines whether data will be null-terminated
-	if((key & 2) >> 1 == 0){
-		universalRead(stream, prefix, sizeof(V));	
+	if ((key & 2) >> 1 == 0) {
+		universalRead(stream, prefix, sizeof(V));
 	}
-	
+
 	dst = new U[static_cast<int>(prefix) + 1];//allocating memory
 	universalRead(stream, *dst, prefix);
 
-	
-	if (key == 0){
+
+	if (key == 0) {
 		dst[static_cast<int>(prefix)] = '\0';
 	}
 
@@ -180,15 +171,17 @@ int universalBulkRead(T &stream, U * &dst, V &prefix, int key = 0) { //optional 
 }
 
 
+
+//Aliased main file and uncompressed chunk reading functions
 fstream file;
 
 template<typename T>
-int fileRead(T &dst) {
+int fileRead(T & dst) {
 	return universalRead(file, dst, sizeof(T));
 }
 
 template<typename U, typename V>
-int fileBulkRead(U &dst, V prefix) {
+int fileBulkRead(U & dst, V prefix) {
 	return universalBulkRead(file, dst, prefix);
 }
 
@@ -196,20 +189,19 @@ int fileBulkRead(U &dst, V prefix) {
 istringstream udata;
 
 template<typename T>
-int unpackedRead(T &dst) {
+int unpackedRead(T & dst) {
 	return universalRead(udata, dst, sizeof(T));
 }
 
 template<typename U, typename V>
-int unpackedBulkRead(U &dst, V &prefix) {
+int unpackedBulkRead(U & dst, V & prefix) {
 	return universalBulkRead(udata, dst, prefix);
 }
 
 
-
 int main(int argc, char const *argv[])
 {
-// 	This section purely extracts savefile path and 
+// 	This section purely extracts savefile path and
 //	checks tha save has proper magic numebr dedicated for .ess files
 
 	if (argc < 2) {
@@ -229,7 +221,7 @@ int main(int argc, char const *argv[])
 		cout << "Please provide correct Skyrim savefile!" << endl;
 		delete[] magic;
 		return -1;
-	}else{
+	} else {
 		delete[] magic;
 	}
 
@@ -385,23 +377,24 @@ int main(int argc, char const *argv[])
 //	End of File Location Table
 
 // Global Data Table 1, Global Data Table 2
-// Too bored to analyze data content fully over there
+// Too bored to parse data content fully over there
 	vector<struct GlobalData> globalDataTable1(FileLocationTable.globalDataTable1Count);
 	vector<struct GlobalData> globalDataTable2(FileLocationTable.globalDataTable2Count);
 
-	for (uint32_t i = 0; i < FileLocationTable.globalDataTable1Count; ++i)	{
+	cout << "GLobal Data Listings (first and second): ";
+
+	for (uint32_t i = 0; i < FileLocationTable.globalDataTable1Count; i++)	{
 		unpackedRead(globalDataTable1[i].type);
-		cout<<globalDataTable1[i].type<<endl;
+		cout << globalDataTable1[i].type << ' ';
 		unpackedBulkRead(globalDataTable1[i].data, globalDataTable1[i].length);
 	}
 
-	for (uint32_t i = 0; i < FileLocationTable.globalDataTable2Count; ++i)	{
+	for (uint32_t i = 0; i < FileLocationTable.globalDataTable2Count; i++)	{
 		unpackedRead(globalDataTable2[i].type);
-		cout<<globalDataTable2[i].type<<endl;
+		cout << globalDataTable2[i].type << ' ';
 		unpackedBulkRead(globalDataTable2[i].data, globalDataTable2[i].length);
 	}
-
-
+	cout << endl;
 
 	struct MiscStats MiscStats;
 
@@ -410,12 +403,80 @@ int main(int argc, char const *argv[])
 	universalRead(globalData, MiscStats.count, sizeof(uint32_t));
 	MiscStats.stats = new MiscStat[MiscStats.count];
 
-	for (uint32_t i = 0; i < MiscStats.count; ++i)
+	for (uint32_t i = 0; i < MiscStats.count; i++)
 	{
 		universalBulkRead(globalData, MiscStats.stats[i].name.data, MiscStats.stats[i].name.prefix);
 		universalRead(globalData, MiscStats.stats[i].category, sizeof(uint8_t));
 		universalRead(globalData, MiscStats.stats[i].value, sizeof(int32_t));
 	}
+	//By here globalData string stream should be empty
+
+//Change Forms
+//Undocumented pretty much, so most of the code below is kinda unfruitful (and contains our skill perk data, unfortunately)
+	vector<struct ChangeForm> changeForms(FileLocationTable.changeFormCount);
+
+
+	for (uint32_t i = 0; i < 1;i++)//FileLocationTable.changeFormCount; i++)
+	{
+		unpackedRead(changeForms[i].formID);
+		unpackedRead(changeForms[i].changeFlags);
+		unpackedRead(changeForms[i].type);
+		unpackedRead(changeForms[i].version);
+
+		unsigned int length_bytes = pow(2, changeForms[i].type & 0xC0);
+		unsigned int form_type = changeForms[i].type & 0x3F;
+
+		cout << length_bytes << '|' << form_type << '|'<<i<<endl;
+
+		switch (length_bytes) {
+			case 0: {
+				uint8_t l1, l2;
+				unpackedRead(l1);
+				unpackedRead(l2);
+
+				udata.putback(l1);
+				unpackedBulkRead(changeForms[i].data, l1);
+				changeForms[i].length1 = l1;
+				changeForms[i].length2 = l2;
+
+
+				break;
+			}
+
+			case 1: {
+				uint16_t l1, l2;
+				unpackedRead(l1);
+				unpackedRead(l2);
+
+				udata.putback(l1);
+				unpackedBulkRead(changeForms[i].data, l1);
+				changeForms[i].length1 = l1;
+				changeForms[i].length2 = l2;	
+
+				cout<<'~'<<l1<<'~'<<l2<<endl;
+
+				break;
+			}
+
+			case 2: {
+				uint32_t l1, l2;
+				unpackedRead(l1);
+				unpackedRead(l2);
+
+				udata.putback(l1);
+				unpackedBulkRead(changeForms[i].data, l1);
+				changeForms[i].length1 = l1;
+				changeForms[i].length2 = l2;
+
+				break;
+			}
+
+		}
+
+		cout<<"abobus"<<endl;
+
+	}
+
 
 
 //ERASED BS UP TO THERE
@@ -423,8 +484,12 @@ int main(int argc, char const *argv[])
 
 
 //MANUAL MEMORY FREEING
+	for (int i = 0; i < FileLocationTable.changeFormCount; i++) {
+		delete[] changeForms[i].data;
+	}
 
-	for (int i = 0; i < MiscStats.count; ++i){
+
+	for (int i = 0; i < MiscStats.count; ++i) {
 		delete[] MiscStats.stats[i].name.data;
 	}
 	delete[] MiscStats.stats;
