@@ -39,9 +39,7 @@ struct wstring
 
 struct RefID//needs improvement
 {
-	uint8_t byte0;
-	uint8_t byte1;
-	uint8_t byte2;
+	bitset<24> data;
 };
 }
 
@@ -415,63 +413,41 @@ int main(int argc, char const *argv[])
 //Undocumented pretty much, so most of the code below is kinda unfruitful (and contains our skill perk data, unfortunately)
 	vector<struct ChangeForm> changeForms(FileLocationTable.changeFormCount);
 
+	// ofstream o("./DBG");
+	// o<<udata.rdbuf();
+
+
 
 	for (uint32_t i = 0; i < 1;i++)//FileLocationTable.changeFormCount; i++)
 	{
-		unpackedRead(changeForms[i].formID);
+		unpackedRead(changeForms[i].formID.data);
 		unpackedRead(changeForms[i].changeFlags);
 		unpackedRead(changeForms[i].type);
 		unpackedRead(changeForms[i].version);
 
-		unsigned int length_bytes = pow(2, changeForms[i].type & 0xC0);
+
+		bitset<8> bs1("11000000");
+		bitset<8> bs2("00111111");
+
+
+		const unsigned int length_bytes = pow(2, (changeForms[i].type & 0xC0) >> 6);
+		
+		cout << (changeForms[i].type & 0xC0)<<endl;
+		cout<<"L:"<<length_bytes<<endl;
 		unsigned int form_type = changeForms[i].type & 0x3F;
+
+
+		cout<<changeForms[i].formID.data<<endl;
+		cout<<bitset<32>(changeForms[i].changeFlags)<<endl;
+		cout<<bitset<8>(changeForms[i].type)<<endl;
 
 		cout << length_bytes << '|' << form_type << '|'<<i<<endl;
 
-		switch (length_bytes) {
-			case 0: {
-				uint8_t l1, l2;
-				unpackedRead(l1);
-				unpackedRead(l2);
 
-				udata.putback(l1);
-				unpackedBulkRead(changeForms[i].data, l1);
-				changeForms[i].length1 = l1;
-				changeForms[i].length2 = l2;
+		universalRead(udata, changeForms[i].length1, length_bytes);
 
 
-				break;
-			}
-
-			case 1: {
-				uint16_t l1, l2;
-				unpackedRead(l1);
-				unpackedRead(l2);
-
-				udata.putback(l1);
-				unpackedBulkRead(changeForms[i].data, l1);
-				changeForms[i].length1 = l1;
-				changeForms[i].length2 = l2;	
-
-				cout<<'~'<<l1<<'~'<<l2<<endl;
-
-				break;
-			}
-
-			case 2: {
-				uint32_t l1, l2;
-				unpackedRead(l1);
-				unpackedRead(l2);
-
-				udata.putback(l1);
-				unpackedBulkRead(changeForms[i].data, l1);
-				changeForms[i].length1 = l1;
-				changeForms[i].length2 = l2;
-
-				break;
-			}
-
-		}
+		cout<<changeForms[i].length1<<endl;
 
 		cout<<"abobus"<<endl;
 
