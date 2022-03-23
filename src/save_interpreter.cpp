@@ -15,8 +15,6 @@
 #include <chrono>
 
 #include "lz4.h"
-
-
 #include "zlib.h"
 
 #if defined(MSDOS) || defined(OS2) || defined(WIN32) || defined(__CYGWIN__)
@@ -28,163 +26,9 @@
 #endif
 
 
-
-template<typename T>
-std::ostream& operator<<(std::ostream &out, const std::vector<T> &vec) {
-	for (auto i : vec) {
-		out << i << ' ';
-	}
-	return out;
-}
-
+#include "definitions.cpp"
 
 using namespace std;
-
-//plain .ESS file format savefile interpreter for TESV:Skyrim
-//as defined in corresponding uesp.net webpage
-
-
-namespace TES {
-
-struct wstring
-{
-	uint16_t prefix;
-	char *data = NULL;
-};
-
-struct RefID//needs improvement
-{
-	uint8_t byte0, byte1, byte2;
-};
-}
-
-
-typedef float float32;
-typedef uint64_t FILETIME;
-
-
-struct Header {
-	uint32_t version;
-	uint32_t saveNumber;
-	TES::wstring playerName;
-	uint32_t playerLevel;
-	TES::wstring playerLocation;
-	TES::wstring gameDate;
-	TES::wstring playerRaceEditorId;
-	uint16_t playerSex;
-	float32 playerCurExp;
-	float32 playerLvlUpExp;
-	FILETIME filetime;
-	uint32_t shotWidth;
-	uint32_t shotHeight;
-	uint16_t compressionType;
-};
-
-std::ostream& operator<<(std::ostream &out, struct Header & _header) {
-	out << _header.playerName.data << ", " << _header.playerRaceEditorId.data << " lvl " << _header.playerLevel << " at " << _header.playerLocation.data;
-	return out;
-}
-
-
-struct PluginInfo {
-	uint8_t pluginCount;
-	TES::wstring *plugins = NULL;
-} PluginInfo;
-
-
-struct LightPluginInfo {
-	uint16_t pluginCount;
-	TES::wstring *plugins = NULL;
-} LightPluginInfo;
-
-
-struct FileLocationTable {
-	uint32_t formIDArrayCountOffset;
-	uint32_t unknownTable3Offset;
-	uint32_t globalDataTable1Offset;
-	uint32_t globalDataTable2Offset;
-	uint32_t changeFormsOffset;
-	uint32_t globalDataTable3Offset;
-	uint32_t globalDataTable1Count;
-	uint32_t globalDataTable2Count;
-	uint32_t globalDataTable3Count;
-	uint32_t changeFormCount;
-	uint32_t unused[15];
-};
-
-ostream& operator<<(ostream &out, const struct FileLocationTable &_file_table) {
-	out << "formIDArrayCountOffset: " 	<< _file_table.formIDArrayCountOffset 	<< endl \
-	    << "unknownTable3Offset: " 		<< _file_table.unknownTable3Offset 		<< endl \
-	    << "globalDataTable1Offset: " 	<< _file_table.globalDataTable1Offset 	<< endl \
-	    << "globalDataTable2Offset: " 	<< _file_table.globalDataTable2Offset 	<< endl \
-	    << "globalDataTable3Offset: " 	<< _file_table.globalDataTable3Offset 	<< endl \
-	    << "changeFormsOffset: " 		<< _file_table.changeFormsOffset 		<< endl \
-	    << "globalDataTable1Count: " 	<< _file_table.globalDataTable1Count 	<< endl \
-	    << "globalDataTable2Count: " 	<< _file_table.globalDataTable2Count 	<< endl \
-	    << "globalDataTable3Count: " 	<< _file_table.globalDataTable3Count 	<< endl \
-	    << "changeFormCount: " 			<< _file_table.changeFormCount 			<< endl \
-	    << "unused: " 					<< _file_table.unused;
-
-	return out;
-}
-
-
-struct MiscStat {
-	TES::wstring name;
-	uint8_t category;
-	int32_t value;
-};
-
-
-struct MiscStats {
-	uint32_t count;
-	MiscStat *stats = NULL;
-};
-
-
-struct GlobalData {
-	uint32_t type;
-	uint32_t length;
-	uint8_t *data = NULL;
-};
-
-struct ChangeForm {
-	TES::RefID formID;
-	uint32_t changeFlags;
-	uint8_t type;
-	uint8_t version;
-	uint32_t length1;//variable size (lengh of data)
-	uint32_t length2;//variable size (uncompressed length,  zero - if non-compressed)
-	uint8_t *data = NULL;
-};
-
-template<typename T, typename U, typename V>
-int universalRead(T &stream, U &dst, V amount) {
-
-	stream.read(reinterpret_cast<char*>(&dst), amount);
-
-	return 0;
-}
-
-template<typename T, typename U, typename V>
-int universalBulkRead(T &stream, U * &dst, V &prefix, int key = 0) { //optional parameter is currently only determines whether data will be null-terminated
-	if ((key & 2) >> 1 == 0) {
-		universalRead(stream, prefix, sizeof(V));
-	}
-
-	dst = new U[static_cast<int>(prefix) + 1];//allocating memory
-	universalRead(stream, *dst, prefix);
-
-
-	if (key == 0) {
-		dst[static_cast<int>(prefix)] = '\0';
-	}
-
-	return 0;
-
-}
-
-
 
 //Aliased main file and uncompressed chunk reading functions
 fstream file;
@@ -285,10 +129,6 @@ int main(int argc, char const *argv[])
 	int bytes_per_pixel = (Header.version >= 12) ? (4) : (3);
 	int bytes_to_skip = bytes_per_pixel * Header.shotHeight * Header.shotWidth * sizeof(uint8_t);
 	file.ignore(bytes_to_skip);
-//	cout << "Skipped screenshot data of " << bytes_to_skip / 1000.0 << "kB" << endl;
-
-	int end_screenshot = file.tellg();
-	cout << "Screenshot parsed,\tC:" << end_screenshot << endl;
 
 //	End of screenshot section
 
@@ -332,7 +172,7 @@ int main(int argc, char const *argv[])
 
 	file.read(compressedInput, compressedLen);
 
-	LZ4_decompress_safe( compressedInput, decompressedOutput, compressedLen, uncompressedLen);
+	LZ4_decompress_safe(move( compressedInput), decompressedOutput, compressedLen, uncompressedLen);
 	delete[] compressedInput;
 
 	file.close();
@@ -344,14 +184,12 @@ int main(int argc, char const *argv[])
 	out << udata.rdbuf();
 	out.close();
 	udata.seekg(0);
-
 //	End of decompression section
 
 
 //	Plugin section
 //	Contains plugin info divided in two sections - plain PluginInfo and LightPluginInfo (mostly .esl or .esl'ified files)
 	uint8_t formVersion;
-
 
 	ofstream plugins("./debug/plugins");
 
@@ -362,7 +200,12 @@ int main(int argc, char const *argv[])
 	unpackedRead(pluginInfoSize);
 	cout << "PluginInfoSize: " << pluginInfoSize << endl;
 
+	int plugin_size_check = pluginInfoSize;
+
 	unpackedRead(PluginInfo.pluginCount);
+	plugin_size_check -= sizeof(PluginInfo.pluginCount);
+
+
 	cout << "Plugins: " << dec << PluginInfo.pluginCount - '\0' << endl;
 
 	PluginInfo.plugins = new TES::wstring[PluginInfo.pluginCount];
@@ -371,11 +214,13 @@ int main(int argc, char const *argv[])
 	plugins << "====ESP====" << endl;
 	for (uint32_t i = 0; i < PluginInfo.pluginCount; i++) {
 		unpackedBulkRead(PluginInfo.plugins[i].data, PluginInfo.plugins[i].prefix);
+		plugin_size_check -= PluginInfo.plugins[i].prefix + sizeof(PluginInfo.plugins[i].prefix);
+
 		plugins << PluginInfo.plugins[i].data << endl;
 	}
 
 	//same with light plugins
-	if (Header.version >= 12) {
+	if (Header.version >= 12 && plugin_size_check > 0) {
 		unpackedRead(LightPluginInfo.pluginCount);
 
 		cout << "Light plugins: " << dec << LightPluginInfo.pluginCount - '\0' << endl;
@@ -450,7 +295,6 @@ int main(int argc, char const *argv[])
 	}
 	cout << endl;
 
-
 	//Parsing Global Data tables for some info
 	struct MiscStats MiscStats;
 
@@ -469,7 +313,7 @@ int main(int argc, char const *argv[])
 	if (!globalData.rdbuf()->in_avail() == 0)
 		cerr << "String stream was not emptied!" << endl;
 
-//Change Forms 
+//Change Forms
 
 	vector<struct ChangeForm> changeForms(FileLocationTable.changeFormCount);
 
@@ -507,13 +351,68 @@ int main(int argc, char const *argv[])
 
 			delete[] compressed_data;
 		}
-		//e << changeForms[i].length1<<'|'<<changeForms[i].length2 <<endl;
+		// e << changeForms[i].length1<<'|'<<changeForms[i].length2 <<endl;
 
 	}
 //End of change forms section
 
 
+//FormID array and worldSpace array
+
+	udata.seekg(FileLocationTable.formIDArrayCountOffset - delta);
+
+	uint32_t formIDArrayCount;
+	unpackedRead(formIDArrayCount);
+
+	vector<formID> formIDArray(formIDArrayCount);
+
+	for (uint32_t i = 0; i < formIDArrayCount; ++i) {
+		unpackedRead(formIDArray[i]);
+	}
+
+	uint32_t visitedWorldspaceArrayCount;
+	unpackedRead(visitedWorldspaceArrayCount);
+
+	vector<formID> visitedWorldspaceArray(visitedWorldspaceArrayCount);
+
+	for (uint32_t i = 0; i < visitedWorldspaceArrayCount; ++i)
+	{
+		unpackedRead(visitedWorldspaceArray[i]);
+	}
+//End of FormID array
+
+
+//UnknownTable3
+	Unknown3Table unknown3Table;
+
+	unpackedRead(unknown3Table.count);
+	unknown3Table.unknown = new TES::wstring[unknown3Table.count];
+
+//memory leak, not interested enough to fix this as contains no useful data rn
+	// for (uint32_t i = 0; i < unknown3Table.count; ++i)
+	// {		
+	// 	unpackedRead(unknown3Table.unknown[i].prefix);
+	// 	unknown3Table.unknown[i].data = new char[unknown3Table.unknown[i].prefix + 1];
+	// 	unknown3Table.unknown[i].data[unknown3Table.unknown[i].prefix] = '\0';
+	// 	udata.read(unknown3Table.unknown[i].data, unknown3Table.unknown[i].prefix);
+	// }
+
+//End of unknown table
+
+
+	udata.clear();
+
+
+
 //MANUAL MEMORY FREEING
+
+	for (int i = 0; i < unknown3Table.count; ++i)
+	{
+		delete[] unknown3Table.unknown[i].data;
+	}
+	delete[] unknown3Table.unknown;
+
+
 	for (int i = 0; i < FileLocationTable.changeFormCount; i++) {
 		delete[] changeForms[i].data;
 	}
@@ -531,7 +430,7 @@ int main(int argc, char const *argv[])
 	for (int i = 0; i < FileLocationTable.globalDataTable2Count; ++i)
 		delete[] globalDataTable2[i].data;
 
-	for(int i = 0; i < FileLocationTable.globalDataTable3Count; ++i)
+	for (int i = 0; i < FileLocationTable.globalDataTable3Count; ++i)
 		delete[] globalDataTable3[i].data;
 
 
