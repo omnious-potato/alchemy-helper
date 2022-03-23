@@ -17,6 +17,18 @@
 #include "lz4.h"
 
 
+#include "zlib.h"
+
+#if defined(MSDOS) || defined(OS2) || defined(WIN32) || defined(__CYGWIN__)
+#  include <fcntl.h>
+#  include <io.h>
+#  define SET_BINARY_MODE(file) setmode(fileno(file), O_BINARY)
+#else
+#  define SET_BINARY_MODE(file)
+#endif
+
+
+
 template<typename T>
 std::ostream& operator<<(std::ostream &out, const std::vector<T> &vec) {
 	for (auto i : vec) {
@@ -42,7 +54,7 @@ struct wstring
 
 struct RefID//needs improvement
 {
-	bitset<24> data;
+	uint8_t byte0, byte1, byte2;
 };
 }
 
@@ -259,7 +271,11 @@ int main(int argc, char const *argv[])
 	fileRead(Header.shotHeight);
 	fileRead(Header.compressionType);
 
-	cout << Header << endl;
+	cout << "Parsing save \"" << Header.playerName.data << "\"" << endl;
+	int end_header = file.tellg();
+	cout << "Header parsed,\tC: " << end_header << endl;
+
+//	cout << Header << endl;
 //	End of Header Section
 
 
@@ -269,13 +285,13 @@ int main(int argc, char const *argv[])
 	int bytes_per_pixel = (Header.version >= 12) ? (4) : (3);
 	int bytes_to_skip = bytes_per_pixel * Header.shotHeight * Header.shotWidth * sizeof(uint8_t);
 	file.ignore(bytes_to_skip);
-	cout << "Skipped screenshot data of " << bytes_to_skip / 1000.0 << "kB" << endl;
+//	cout << "Skipped screenshot data of " << bytes_to_skip / 1000.0 << "kB" << endl;
+
+	int end_screenshot = file.tellg();
+	cout << "Screenshot parsed,\tC:" << end_screenshot << endl;
+
 //	End of screenshot section
 
-
-
-	int pre_compression_seek_marker = file.tellg();
-	cout<<pre_compression_seek_marker<<endl;
 // 	Compression/decompression part
 //
 //  Further implementation assumes usage of LZ4 compression, decompression is done via corresponding C library with header file "lz4.h".
@@ -309,34 +325,39 @@ int main(int argc, char const *argv[])
 	}
 
 
-
-
-
-
 	char * compressedInput = new char[compressedLen];
 	char * decompressedOutput = new char[uncompressedLen];
 
 	//Here we decompress LZ4 compressed data
-	file.read(compressedInput, compressedLen);
-	LZ4_decompress_safe( compressedInput, decompressedOutput, compressedLen, uncompressedLen);
 
+
+	cout << file.tellg() << endl;
+
+	file.read(compressedInput, compressedLen);
+
+	LZ4_decompress_safe( compressedInput, decompressedOutput, compressedLen, uncompressedLen);
 	delete[] compressedInput;
 
 
-	ofstream out("./REST");//should be empty, because there should be no footer after compressed chunk of savefile
-	out << file.rdbuf();
-	out.close();
-	file.close();
+	cout << file.tellg() << endl;
 
 	udata.str(string(decompressedOutput, uncompressedLen));
-	delete[] decompressedOutput;
+
+	ofstream out("./debug/uncompressed");
+	out << udata.rdbuf();
+	out.close();
+	udata.seekg(0);
+
 //	End of decompression section
 
 
 //	Plugin section
 //	Contains plugin info divided in two sections - plain PluginInfo and LightPluginInfo (mostly .esl or .esl'ified files)
 	uint8_t formVersion;
-	//udata.read(reinterpret_cast<char*>(&formVersion), sizeof(uint8_t));
+
+
+	ofstream plugins("./debug/plugins");
+
 	unpackedRead(formVersion);
 	cout << "Form version: " << dec << formVersion - '\0' << endl;
 
@@ -350,21 +371,29 @@ int main(int argc, char const *argv[])
 	PluginInfo.plugins = new TES::wstring[PluginInfo.pluginCount];
 
 
+	plugins << "====ESP====" << endl;
 	for (uint32_t i = 0; i < PluginInfo.pluginCount; i++) {
 		unpackedBulkRead(PluginInfo.plugins[i].data, PluginInfo.plugins[i].prefix);
-		//cout << PluginInfo.plugins[i].data << endl;
+		plugins << PluginInfo.plugins[i].data << endl;
 	}
 
 	//same with light plugins
-	unpackedRead(LightPluginInfo.pluginCount);
-	cout << "Light plugins: " << dec << LightPluginInfo.pluginCount - '\0' << endl;
+	if (Header.version >= 12) {
+		unpackedRead(LightPluginInfo.pluginCount);
 
-	LightPluginInfo.plugins = new TES::wstring[LightPluginInfo.pluginCount];
+		cout << "Light plugins: " << dec << LightPluginInfo.pluginCount - '\0' << endl;
 
-	for (uint32_t i = 0; i < LightPluginInfo.pluginCount; i++)	{
-		unpackedBulkRead(LightPluginInfo.plugins[i].data, LightPluginInfo.plugins[i].prefix);
-		//cout << LightPluginInfo.plugins[i].data << endl;
+		LightPluginInfo.plugins = new TES::wstring[LightPluginInfo.pluginCount];
+
+
+		plugins << "====ESL====" << endl;
+		for (uint32_t i = 0; i < LightPluginInfo.pluginCount; i++)	{
+			unpackedBulkRead(LightPluginInfo.plugins[i].data, LightPluginInfo.plugins[i].prefix);
+			plugins << LightPluginInfo.plugins[i].data << endl;
+		}
 	}
+
+	plugins.close();
 //	End of Plugins and Light Plugins section
 
 
@@ -387,19 +416,22 @@ int main(int argc, char const *argv[])
 
 	for (int i = 0; i < 15; ++i)
 		unpackedRead(FileLocationTable.unused[i]);
-
 	cout << FileLocationTable << endl;
 //	End of File Location Table
 
-// Global Data Table 1, Global Data Table 2
+// Global Data Table 1, 2 and 3
 // Too bored to parse data content fully over there
 	vector<struct GlobalData> globalDataTable1(FileLocationTable.globalDataTable1Count);
 	vector<struct GlobalData> globalDataTable2(FileLocationTable.globalDataTable2Count);
+	vector<struct GlobalData> globalDataTable3(FileLocationTable.globalDataTable3Count);
 
 
-	cout<<udata.tellg()<<endl;	
+	//First and Second table are read from udata sequentially and third is being seeked by and offset given in FileLocationTable
 
-	cout << "GLobal Data Listings (first and second): ";
+	cout << "GlobalData tables: ";
+
+	int delta = FileLocationTable.globalDataTable1Offset - udata.tellg();
+	int reset_marker = udata.tellg();
 
 	for (uint32_t i = 0; i < FileLocationTable.globalDataTable1Count; i++)	{
 		unpackedRead(globalDataTable1[i].type);
@@ -412,7 +444,15 @@ int main(int argc, char const *argv[])
 		cout << globalDataTable2[i].type << ' ';
 		unpackedBulkRead(globalDataTable2[i].data, globalDataTable2[i].length);
 	}
+
+	udata.seekg(FileLocationTable.globalDataTable3Offset - delta);
+	for (uint32_t i = 0; i < FileLocationTable.globalDataTable3Count; i++) {
+		unpackedRead(globalDataTable3[i].type);
+		cout << globalDataTable3[i].type << ' ';
+		unpackedBulkRead(globalDataTable3[i].data, globalDataTable3[i].length);
+	}
 	cout << endl;
+
 
 	//Parsing Global Data tables for some info
 	struct MiscStats MiscStats;
@@ -429,72 +469,51 @@ int main(int argc, char const *argv[])
 		universalRead(globalData, MiscStats.stats[i].value, sizeof(int32_t));
 	}
 	//By here globalData string stream should be empty
-	if(!globalData.rdbuf()->in_avail() == 0)
-		cerr<< "String stream was not emptied!"<<endl;
+	if (!globalData.rdbuf()->in_avail() == 0)
+		cerr << "String stream was not emptied!" << endl;
 
-//Change Forms
-
-
-	cout<<udata.tellg()<<endl;	
+//Change Forms 
 
 	vector<struct ChangeForm> changeForms(FileLocationTable.changeFormCount);
 
+	//forms are read by a given offset in FileLocationTable
+	udata.seekg(FileLocationTable.changeFormsOffset - delta);
 
-	for (uint32_t i = 0; i < FileLocationTable.changeFormCount; i++) //FileLocationTable.changeFormCount
+	ofstream e("./debug/dasuka");
+
+	for (uint32_t i = 0; i < FileLocationTable.changeFormCount; i++)
 	{
-		unpackedRead(changeForms[i].formID.data);
+		unpackedRead(changeForms[i].formID.byte0);
+		unpackedRead(changeForms[i].formID.byte1);
+		unpackedRead(changeForms[i].formID.byte2);
+
 		unpackedRead(changeForms[i].changeFlags);
 		unpackedRead(changeForms[i].type);
 		unpackedRead(changeForms[i].version);
 
+		unsigned int length_size = pow(2, (changeForms[i].type & 0xC0) >> 6);
 
-		//cout << int(changeForms[i].version) << '|';
-
-		unsigned int length_bytes;
-
-		//unsigned int length_bytes = pow(2, (changeForms[i].type & 0xC0) >>6);
-
-
-		universalRead(udata, changeForms[i].length1, length_bytes);
-		universalRead(udata, changeForms[i].length2, length_bytes);
-
-
-		//cout << length_bytes << '|' << changeForms[i].length1 << '|' << changeForms[i].length2 << endl;
-
-		changeForms[i].data = new uint8_t[changeForms[i].length1];
+		universalRead(udata, changeForms[i].length1, length_size);
+		universalRead(udata, changeForms[i].length2, length_size);
 
 		if (changeForms[i].length2 == 0) {
 			changeForms[i].data = new uint8_t[changeForms[i].length1];
-			udata.read(reinterpret_cast<char*>(changeForms[i].data), changeForms[i].length1);
 
-
+			udata.read(reinterpret_cast<char *>(changeForms[i].data), changeForms[i].length1);
 		} else {
 			char * compressed_data = new char[changeForms[i].length1];
-			changeForms[i].data = new uint8_t[changeForms[i].length2];
-			udata.read(reinterpret_cast<char*>(compressed_data), changeForms[i].length1);
 
-			//Foms typically use zLib compression
+			changeForms[i].data = new uint8_t[changeForms[i].length2];
+
+			udata.read(reinterpret_cast<char *>(compressed_data), changeForms[i].length1);
 
 			delete[] compressed_data;
 		}
-
+		e << changeForms[i].length1<<'|'<<changeForms[i].length2 <<endl;
 
 	}
 
-//Global Data (table 3)
-	vector<struct GlobalData> globalDataTable3(FileLocationTable.globalDataTable3Count);
-
-	cout<<udata.tellg()<<endl;	
-
-	cout << "Global Data Listings (third): ";
-
-	for (uint32_t i = 0; i < FileLocationTable.globalDataTable3Count; i++) {
-		unpackedRead(globalDataTable3[i].type);
-		cout << globalDataTable3[i].type << ' ';
-		unpackedBulkRead(globalDataTable3[i].data, globalDataTable3[i].length);
-	}
-	cout<<endl;
-
+	e.close();
 
 //MANUAL MEMORY FREEING
 	for (int i = 0; i < FileLocationTable.changeFormCount; i++) {
@@ -514,6 +533,10 @@ int main(int argc, char const *argv[])
 	for (int i = 0; i < FileLocationTable.globalDataTable2Count; ++i)
 		delete[] globalDataTable2[i].data;
 
+	for(int i = 0; i < FileLocationTable.globalDataTable3Count; ++i)
+		delete[] globalDataTable3[i].data;
+
+
 	for (uint16_t i = 0; i < LightPluginInfo.pluginCount; ++i)
 		delete[] LightPluginInfo.plugins[i].data;
 	delete[] LightPluginInfo.plugins;
@@ -528,7 +551,7 @@ int main(int argc, char const *argv[])
 	delete[] Header.playerRaceEditorId.data;
 
 
-
+	delete[] decompressedOutput;
 
 
 	return 0;
