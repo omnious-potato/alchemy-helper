@@ -12,3 +12,4 @@
 *.json
 /node_modules/*
 /presaved/*
+!/data/*
