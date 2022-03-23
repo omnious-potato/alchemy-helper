@@ -330,18 +330,15 @@ int main(int argc, char const *argv[])
 
 	//Here we decompress LZ4 compressed data
 
-
-	cout << file.tellg() << endl;
-
 	file.read(compressedInput, compressedLen);
 
 	LZ4_decompress_safe( compressedInput, decompressedOutput, compressedLen, uncompressedLen);
 	delete[] compressedInput;
 
-
-	cout << file.tellg() << endl;
+	file.close();
 
 	udata.str(string(decompressedOutput, uncompressedLen));
+	delete[] decompressedOutput;
 
 	ofstream out("./debug/uncompressed");
 	out << udata.rdbuf();
@@ -479,7 +476,7 @@ int main(int argc, char const *argv[])
 	//forms are read by a given offset in FileLocationTable
 	udata.seekg(FileLocationTable.changeFormsOffset - delta);
 
-	ofstream e("./debug/dasuka");
+	// ofstream e("./debug/dasuka");
 
 	for (uint32_t i = 0; i < FileLocationTable.changeFormCount; i++)
 	{
@@ -501,6 +498,7 @@ int main(int argc, char const *argv[])
 
 			udata.read(reinterpret_cast<char *>(changeForms[i].data), changeForms[i].length1);
 		} else {
+			//not implemented yet (haven't even seen those)
 			char * compressed_data = new char[changeForms[i].length1];
 
 			changeForms[i].data = new uint8_t[changeForms[i].length2];
@@ -509,11 +507,11 @@ int main(int argc, char const *argv[])
 
 			delete[] compressed_data;
 		}
-		e << changeForms[i].length1<<'|'<<changeForms[i].length2 <<endl;
+		//e << changeForms[i].length1<<'|'<<changeForms[i].length2 <<endl;
 
 	}
+//End of change forms section
 
-	e.close();
 
 //MANUAL MEMORY FREEING
 	for (int i = 0; i < FileLocationTable.changeFormCount; i++) {
@@ -549,10 +547,6 @@ int main(int argc, char const *argv[])
 	delete[] Header.playerLocation.data;
 	delete[] Header.gameDate.data;
 	delete[] Header.playerRaceEditorId.data;
-
-
-	delete[] decompressedOutput;
-
 
 	return 0;
 }
