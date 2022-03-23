@@ -10,6 +10,9 @@
 #include <variant>
 #include <cassert>
 #include <cmath>
+#include <memory>
+#include <thread>
+#include <chrono>
 
 #include "lz4.h"
 
@@ -166,6 +169,7 @@ int universalBulkRead(T &stream, U * &dst, V &prefix, int key = 0) { //optional 
 	}
 
 	return 0;
+
 }
 
 
@@ -205,17 +209,21 @@ int main(int argc, char const *argv[])
 	if (argc < 2) {
 		cout << "Please provide path for savefile location" << endl;
 		return 0;
+
 	}
 
 	string path_to_file = argv[1];
 
 	file.open(path_to_file, ios::in | ios::binary);
 
-	char * magic = new char[13];
+	char * magic = new char[14];
+	magic[13] = '\0';
 	file.read(magic, 13);
 
-	if (strncmp(magic, "TESV_SAVEGAME", 13) != 0) {
 
+	if (strncmp(magic, "TESV_SAVEGAME", 13) != 0) {
+		//if(magic != "TESV_SAVEGAME"){
+		//cout<< magic<<endl;
 		cout << "Please provide correct Skyrim savefile!" << endl;
 		delete[] magic;
 		return -1;
@@ -265,6 +273,9 @@ int main(int argc, char const *argv[])
 //	End of screenshot section
 
 
+
+	int pre_compression_seek_marker = file.tellg();
+	cout<<pre_compression_seek_marker<<endl;
 // 	Compression/decompression part
 //
 //  Further implementation assumes usage of LZ4 compression, decompression is done via corresponding C library with header file "lz4.h".
@@ -297,12 +308,18 @@ int main(int argc, char const *argv[])
 		return -1;
 	}
 
+
+
+
+
+
 	char * compressedInput = new char[compressedLen];
 	char * decompressedOutput = new char[uncompressedLen];
 
 	//Here we decompress LZ4 compressed data
 	file.read(compressedInput, compressedLen);
-	LZ4_decompress_safe(compressedInput, decompressedOutput, compressedLen, uncompressedLen);
+	LZ4_decompress_safe( compressedInput, decompressedOutput, compressedLen, uncompressedLen);
+
 	delete[] compressedInput;
 
 
@@ -379,6 +396,9 @@ int main(int argc, char const *argv[])
 	vector<struct GlobalData> globalDataTable1(FileLocationTable.globalDataTable1Count);
 	vector<struct GlobalData> globalDataTable2(FileLocationTable.globalDataTable2Count);
 
+
+	cout<<udata.tellg()<<endl;	
+
 	cout << "GLobal Data Listings (first and second): ";
 
 	for (uint32_t i = 0; i < FileLocationTable.globalDataTable1Count; i++)	{
@@ -394,6 +414,7 @@ int main(int argc, char const *argv[])
 	}
 	cout << endl;
 
+	//Parsing Global Data tables for some info
 	struct MiscStats MiscStats;
 
 	istringstream globalData(string(reinterpret_cast<char*>(globalDataTable1[0].data), globalDataTable1[0].length));
@@ -408,17 +429,18 @@ int main(int argc, char const *argv[])
 		universalRead(globalData, MiscStats.stats[i].value, sizeof(int32_t));
 	}
 	//By here globalData string stream should be empty
+	if(!globalData.rdbuf()->in_avail() == 0)
+		cerr<< "String stream was not emptied!"<<endl;
 
 //Change Forms
-//Undocumented pretty much, so most of the code below is kinda unfruitful (and contains our skill perk data, unfortunately)
+
+
+	cout<<udata.tellg()<<endl;	
+
 	vector<struct ChangeForm> changeForms(FileLocationTable.changeFormCount);
 
-	// ofstream o("./DBG");
-	// o<<udata.rdbuf();
 
-
-
-	for (uint32_t i = 0; i < 1;i++)//FileLocationTable.changeFormCount; i++)
+	for (uint32_t i = 0; i < FileLocationTable.changeFormCount; i++) //FileLocationTable.changeFormCount
 	{
 		unpackedRead(changeForms[i].formID.data);
 		unpackedRead(changeForms[i].changeFlags);
@@ -426,37 +448,52 @@ int main(int argc, char const *argv[])
 		unpackedRead(changeForms[i].version);
 
 
-		bitset<8> bs1("11000000");
-		bitset<8> bs2("00111111");
+		//cout << int(changeForms[i].version) << '|';
 
+		unsigned int length_bytes;
 
-		const unsigned int length_bytes = pow(2, (changeForms[i].type & 0xC0) >> 6);
-		
-		cout << (changeForms[i].type & 0xC0)<<endl;
-		cout<<"L:"<<length_bytes<<endl;
-		unsigned int form_type = changeForms[i].type & 0x3F;
-
-
-		cout<<changeForms[i].formID.data<<endl;
-		cout<<bitset<32>(changeForms[i].changeFlags)<<endl;
-		cout<<bitset<8>(changeForms[i].type)<<endl;
-
-		cout << length_bytes << '|' << form_type << '|'<<i<<endl;
+		//unsigned int length_bytes = pow(2, (changeForms[i].type & 0xC0) >>6);
 
 
 		universalRead(udata, changeForms[i].length1, length_bytes);
+		universalRead(udata, changeForms[i].length2, length_bytes);
 
 
-		cout<<changeForms[i].length1<<endl;
+		//cout << length_bytes << '|' << changeForms[i].length1 << '|' << changeForms[i].length2 << endl;
 
-		cout<<"abobus"<<endl;
+		changeForms[i].data = new uint8_t[changeForms[i].length1];
+
+		if (changeForms[i].length2 == 0) {
+			changeForms[i].data = new uint8_t[changeForms[i].length1];
+			udata.read(reinterpret_cast<char*>(changeForms[i].data), changeForms[i].length1);
+
+
+		} else {
+			char * compressed_data = new char[changeForms[i].length1];
+			changeForms[i].data = new uint8_t[changeForms[i].length2];
+			udata.read(reinterpret_cast<char*>(compressed_data), changeForms[i].length1);
+
+			//Foms typically use zLib compression
+
+			delete[] compressed_data;
+		}
+
 
 	}
 
+//Global Data (table 3)
+	vector<struct GlobalData> globalDataTable3(FileLocationTable.globalDataTable3Count);
 
+	cout<<udata.tellg()<<endl;	
 
-//ERASED BS UP TO THERE
+	cout << "Global Data Listings (third): ";
 
+	for (uint32_t i = 0; i < FileLocationTable.globalDataTable3Count; i++) {
+		unpackedRead(globalDataTable3[i].type);
+		cout << globalDataTable3[i].type << ' ';
+		unpackedBulkRead(globalDataTable3[i].data, globalDataTable3[i].length);
+	}
+	cout<<endl;
 
 
 //MANUAL MEMORY FREEING

@@ -1,0 +1,14 @@
+*.env
+*.config
+*.cfg
+*.tmp
+*.log
+*.info
+*.dbg
+*.py
+*CMake*
+*cmake*
+*ninja*
+*.json
+/node_modules/*
+/presaved/*
